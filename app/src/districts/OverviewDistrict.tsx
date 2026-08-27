@@ -1,4 +1,4 @@
-import { useCityStore } from '../store/cityStore';
+import { useCityStore, updateEvent } from '../store/cityStore';
 
 export default function OverviewDistrict() {
 	const { event } = useCityStore();
@@ -7,11 +7,16 @@ export default function OverviewDistrict() {
 	const total = venueCost + cateringCost;
 	const remaining = event.budgetLimit - total;
 
+	const capacityValid = event.venue ? event.venue.capacity >= event.attendees : true;
+	const budgetValid = total <= event.budgetLimit;
+	const dietValid = !event.catering || event.catering.diet === event.dietaryPreference;
+	const startValid = event.startTime >= '14:00';
+
 	const constraints = [
-		{ label: 'People', value: event.attendees, valid: event.venue ? event.venue.capacity >= event.attendees : true },
-		{ label: 'Budget', value: `₹${event.budgetLimit}`, valid: total <= event.budgetLimit },
-		{ label: 'Diet', value: event.dietaryPreference, valid: !event.catering || event.catering.diet === event.dietaryPreference },
-		{ label: 'Start', value: event.startTime, valid: event.startTime >= '14:00' },
+		{ label: 'People', value: event.attendees, valid: capacityValid },
+		{ label: 'Budget', value: `₹${event.budgetLimit}`, valid: budgetValid },
+		{ label: 'Diet', value: event.dietaryPreference, valid: dietValid },
+		{ label: 'Start', value: event.startTime, valid: startValid },
 	];
 
 	return (
@@ -67,6 +72,38 @@ export default function OverviewDistrict() {
 							<div className={`text-xs ${c.valid ? 'text-city-success' : 'text-city-danger'}`}>{c.valid ? '✓ VALID' : '✕ INVALID'}</div>
 						</div>
 					))}
+				</div>
+			</div>
+
+			{!capacityValid && event.venue && (
+				<div className="panel border-l-4 border-l-city-danger p-4">
+					<div className="mb-1 font-mono text-xs text-city-danger">CONSTRAINT VIOLATION</div>
+					<div className="text-sm">
+						Venue {event.venue.name} capacity ({event.venue.capacity}) is less than required attendees ({event.attendees}).
+						Go to <strong>Venues</strong>, search again, and reserve a larger venue.
+					</div>
+				</div>
+			)}
+
+			<div className="panel p-4">
+				<div className="mb-3 font-mono text-xs text-city-muted">QUICK ADJUSTMENTS</div>
+				<div className="flex items-center gap-4">
+					<div className="text-sm text-city-muted">Attendees:</div>
+					<div className="flex gap-2">
+						{[12, 16, 20, 24].map((n) => (
+							<button
+								key={n}
+								onClick={() => updateEvent({ attendees: n })}
+								className={`rounded-md border px-4 py-2 text-sm ${
+									event.attendees === n
+										? 'border-city-accent bg-city-accent/20 text-white'
+										: 'border-city-border text-city-muted hover:bg-white/5'
+								}`}
+							>
+								{n}
+							</button>
+						))}
+					</div>
 				</div>
 			</div>
 		</div>

@@ -76,12 +76,19 @@ export default {
 			const minCapacity = typeof body.minimumCapacity === 'number' ? body.minimumCapacity : 0;
 			const maxPrice = typeof body.maximumPrice === 'number' ? body.maximumPrice : Infinity;
 			const date = typeof body.date === 'string' ? body.date : undefined;
-			const matches = venues.filter(
-				(v) =>
-					v.capacity >= minCapacity &&
-					v.price <= maxPrice &&
-					(date ? v.availability.includes(date) : true)
-			);
+			const matches = venues
+				.filter(
+					(v) =>
+						v.capacity >= minCapacity &&
+						v.price <= maxPrice &&
+						(date ? v.availability.includes(date) : true)
+				)
+				.sort((a, b) => {
+					const fitA = a.capacity - minCapacity;
+					const fitB = b.capacity - minCapacity;
+					if (fitA !== fitB) return fitA - fitB;
+					return a.price - b.price;
+				});
 			return jsonResponse({ matches, count: matches.length });
 		}
 
@@ -97,12 +104,14 @@ export default {
 			const people = typeof body.people === 'number' ? body.people : 1;
 			const diet = typeof body.dietaryPreference === 'string' ? body.dietaryPreference : 'vegetarian';
 			const maxPrice = typeof body.maximumPricePerPerson === 'number' ? body.maximumPricePerPerson : Infinity;
-			const matches = cateringPackages.filter(
-				(p) =>
-					p.minimumOrder <= people &&
-					p.diet === diet &&
-					p.pricePerPerson <= maxPrice
-			);
+			const matches = cateringPackages
+				.filter(
+					(p) =>
+						p.minimumOrder <= people &&
+						p.diet === diet &&
+						p.pricePerPerson <= maxPrice
+				)
+				.sort((a, b) => a.pricePerPerson - b.pricePerPerson);
 			return jsonResponse({ matches, count: matches.length });
 		}
 

@@ -97,6 +97,15 @@ export const venues: Venue[] = [
 
 export const cateringPackages: CateringPackage[] = [
 	{
+		id: 'basic-veg',
+		name: 'Basic Veg Thali',
+		pricePerPerson: 280,
+		diet: 'vegetarian',
+		minimumOrder: 10,
+		rating: 4.2,
+		items: ['dal', 'sabzi', 'rice', 'roti', 'raita'],
+	},
+	{
 		id: 'veg-delight',
 		name: 'Veg Delight',
 		pricePerPerson: 450,

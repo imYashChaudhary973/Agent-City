@@ -8,15 +8,16 @@ export interface CityState {
 	approvalOutcomes: Record<string, 'approved' | 'rejected' >;
 }
 
-function today(): string {
+function tomorrow(): string {
 	const d = new Date();
+	d.setDate(d.getDate() + 1);
 	return d.toISOString().split('T')[0];
 }
 
 function defaultEvent(): EventPlan {
 	return {
 		attendees: 12,
-		date: today(),
+		date: tomorrow(),
 		startTime: '14:00',
 		dietaryPreference: 'vegetarian',
 		budgetLimit: 10000,
