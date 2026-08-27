@@ -2,11 +2,13 @@
 
 A miniature internet built for humans and AI agents.
 
+**Built for the OpenAI WebMCP Challenge (Aug 25 – Sep 3, 2026).**
+
+Live demo: *https://agent-city.pages.dev* (deploy via `npm run deploy`)
+
 ## The Experiment
 
-Most browser agents interact with websites by interpreting interfaces designed for humans.
-
-Agent City explores another model: websites exposing structured capabilities directly through **WebMCP**. The same application is operated by humans through a visual UI and by agents through typed, discoverable tools — both reading and writing shared state.
+Most browser agents interact with websites by interpreting interfaces designed for humans. Agent City explores another model: websites exposing structured capabilities directly through **WebMCP** (`document.modelContext`). The same application is operated by humans through a visual UI and by agents through typed, discoverable tools — both reading and writing shared state.
 
 ## Demo Scenario
 
@@ -32,7 +34,7 @@ ChatGPT / Browser Agent
   document.modelContext
         │
         ▼
-   Agent City SPA  (React + Vite)
+   Agent City SPA  (React + Vite + TypeScript)
    ├── Venue district
    ├── Catering district
    ├── Calendar district
@@ -42,17 +44,17 @@ ChatGPT / Browser Agent
   Cloudflare Worker API
         │
         ▼
-  In-memory deterministic datasets
+  Deterministic in-memory datasets
 ```
 
-- **Frontend**: React + TypeScript + Vite, Tailwind CSS
-- **Backend**: Cloudflare Worker
+- **Frontend**: React 19 + TypeScript + Vite, Tailwind CSS
+- **Backend**: Cloudflare Worker (Hono-style routing in vanilla Workers)
 - **State**: Shared React store + Worker request-scoped event plan header
-- **Agent surface**: WebMCP imperative API (`document.modelContext.registerTool`)
+- **Agent surface**: WebMCP imperative API with typed JSON schemas, read-only annotations, dynamic registration, and human-in-the-loop approval
 
 ## WebMCP Tool Surface
 
-Read tools:
+Read tools (annotated `readOnlyHint: true`):
 
 - `search_venues`
 - `get_venue_details`
@@ -70,14 +72,13 @@ Write tools (require human approval):
 - `schedule_event`
 - `update_event_requirements`
 
-State-aware dynamic tools (registered only after the relevant selection):
+Dynamic state-aware tools (registered only after the relevant selection):
 
-- `modify_reservation`
-- `cancel_reservation`
-- `modify_catering_order`
-- `cancel_catering_order`
-- `reschedule_event`
-- `cancel_event`
+- `modify_reservation` / `cancel_reservation` (after venue reserved)
+- `modify_catering_order` / `cancel_catering_order` (after catering ordered)
+- `reschedule_event` / `cancel_event` (after event scheduled)
+
+The inspector shows the currently available tool set, mode (READ/WRITE/DESTRUCTIVE), and every WebMCP call with input/output and timing.
 
 ## Running Locally
 
@@ -89,7 +90,7 @@ npm run dev
 
 Open http://localhost:8787.
 
-For WebMCP testing, use ChatGPT's in-app browser or Chrome's experimental WebMCP tooling.
+For WebMCP testing, use ChatGPT's in-app browser, Chrome DevTools MCP, or Cloudflare Browser Run lab sessions (`lab=true`).
 
 ## Deploy
 
@@ -97,9 +98,19 @@ For WebMCP testing, use ChatGPT's in-app browser or Chrome's experimental WebMCP
 npm run deploy
 ```
 
+This builds the Vite app and deploys the Worker + static assets to Cloudflare Workers.
+
+## Submission Checklist
+
+- [x] Working hosted application
+- [x] Public code repository (https://github.com/imYashChaudhary973/Agent-City)
+- [x] Open-source license (MIT)
+- [x] Written project description (this README)
+- [ ] 3-minute demo video with audio
+
 ## Why WebMCP?
 
-Traditional agents read the DOM, interpret UI, click, and hope. WebMCP lets a website declare what it can do: discoverable, typed, state-aware tools. Agent City demonstrates that duality with a shared human/agent UI and a live inspector.
+Traditional agents read the DOM, interpret UI, click, and hope. WebMCP lets a website declare what it can do: discoverable, typed, state-aware tools. Agent City demonstrates that duality with a shared human/agent UI, a live WebMCP inspector, and visible agent reasoning.
 
 ## License
 

@@ -30,10 +30,7 @@ export default function Inspector() {
 					<div className="mb-2 font-mono text-xs text-city-muted">AVAILABLE TOOLS</div>
 					<ul className="space-y-1">
 						{tools.map((t) => {
-							const mode = t.name.startsWith('search') ||
-								t.name.startsWith('get') ||
-								t.name.startsWith('find') ||
-								t.name.startsWith('calculate')
+							const mode = t.annotations?.readOnlyHint
 								? 'READ'
 								: t.name.startsWith('cancel')
 								? 'DESTRUCTIVE'
@@ -52,10 +49,7 @@ export default function Inspector() {
 				<div className="mb-2 flex items-center justify-between">
 					<span className="font-mono text-xs text-city-muted">RECENT CALLS</span>
 					<button
-						onClick={() => {
-							const s = getCityState();
-							console.log('City state', s);
-						}}
+						onClick={() => console.log('City state', getCityState())}
 						className="font-mono text-[10px] text-city-accent hover:underline"
 					>
 						log state
