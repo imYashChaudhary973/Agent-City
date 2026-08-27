@@ -1,4 +1,4 @@
-import type { JSONSchema, RegisteredToolInfo, Tool, ToolAnnotations } from '../types/webmcp';
+import type { RegisteredToolInfo, Tool } from '../types/webmcp';
 import { addAction, updateAction } from '../store/cityStore';
 
 let registered = new Set<string>();
@@ -7,7 +7,10 @@ function isWebMCPAvailable(): boolean {
 	return typeof document !== 'undefined' && !!document.modelContext?.registerTool;
 }
 
-function wrapExecute(name: string, execute: (input: unknown, options: { signal: AbortSignal }) => Promise<unknown>): (input: unknown, options: { signal: AbortSignal }) => Promise<unknown> {
+function wrapExecute(
+	name: string,
+	execute: (input: unknown, options: { signal: AbortSignal }) => Promise<unknown>
+): (input: unknown, options: { signal: AbortSignal }) => Promise<unknown> {
 	return async (input: unknown, options: { signal: AbortSignal }) => {
 		const id = crypto.randomUUID();
 		const start = performance.now();
@@ -30,10 +33,10 @@ export async function registerTools(tools: Tool[]) {
 	if (!isWebMCPAvailable()) return;
 
 	const controllers = new Map<string, AbortController>();
+	const added: string[] = [];
 
 	for (const tool of tools) {
 		if (registered.has(tool.name)) {
-			// existing registration still valid; leave controller alone
 			continue;
 		}
 		const controller = new AbortController();
@@ -51,12 +54,13 @@ export async function registerTools(tools: Tool[]) {
 				{ signal: controller.signal }
 			);
 			registered.add(tool.name);
+			added.push(tool.name);
 		} catch {
 			// ignore concurrent registration races
 		}
 	}
 
-	// Remove stale tools and abort their registrations
+	const removed: string[] = [];
 	for (const name of registered) {
 		if (!tools.some((t) => t.name === name)) {
 			const controller = controllers.get(name);
@@ -67,7 +71,20 @@ export async function registerTools(tools: Tool[]) {
 				// ignore
 			}
 			registered.delete(name);
+			removed.push(name);
 		}
+	}
+
+	if (added.length || removed.length) {
+		addAction({
+			id: crypto.randomUUID(),
+			tool: 'toolchange',
+			input: { available: tools.map((t) => t.name), added, removed },
+			result: null,
+			duration: 0,
+			ts: Date.now(),
+			status: 'success',
+		});
 	}
 }
 
