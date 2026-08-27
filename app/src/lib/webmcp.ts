@@ -16,7 +16,7 @@ function wrapExecute(
 		const start = performance.now();
 		addAction({ id, tool: name, input, result: null, duration: 0, ts: Date.now(), status: 'pending' });
 		try {
-			const result = await execute(input, options);
+			const result = await execute(input, { signal: options.signal, bypassApproval: false });
 			const duration = Math.round(performance.now() - start);
 			updateAction(id, { result, duration, status: 'success' });
 			return result;
@@ -29,22 +29,29 @@ function wrapExecute(
 	};
 }
 
+// Expose tool executors on window so external agent drivers (ChatGPT browser,
+// Cloudflare Browser Run, console scripts) can discover and call them directly.
+function exposeAgentHooks(tools: Tool[]) {
+	if (typeof window === 'undefined') return;
+	const w = window as any;
+	const map: Record<string, Tool> = {};
+	for (const t of tools) map[t.name] = t;
+	w.__agentCityTools = tools.map((t) => ({ name: t.name, description: t.description, schema: t.inputSchema }));
+	w.__agentCityToolMap = map;
+	w.__agentCityState = () => {
+		const { getCityState } = require('../store/cityStore');
+		return getCityState();
+	};
+	w.__agentCityRegisterNow = () => {
+		const { getCityState } = require('../store/cityStore');
+		const { availableTools } = require('./tools');
+		return registerTools(availableTools(getCityState()));
+	};
+}
+
 export function exposeTools(tools: Tool[]) {
 	try {
-		const w = window as any;
-		const map: Record<string, Tool> = {};
-		for (const t of tools) map[t.name] = t;
-		w.__agentCityTools = tools.map((t) => ({ name: t.name, description: t.description, schema: t.inputSchema }));
-		w.__agentCityToolMap = map;
-		w.__agentCityState = () => {
-			const { getCityState } = require('../store/cityStore');
-			return getCityState();
-		};
-		w.__agentCityRegisterNow = () => {
-			const { getCityState } = require('../store/cityStore');
-			const { availableTools } = require('./tools');
-			return registerTools(availableTools(getCityState()));
-		};
+		exposeAgentHooks(tools);
 		console.log('[exposeTools] exposed', tools.length, 'tools');
 	} catch (e) {
 		console.error('[exposeTools] failed', e);
@@ -52,7 +59,7 @@ export function exposeTools(tools: Tool[]) {
 }
 
 export async function registerTools(tools: Tool[]) {
-	exposeTools(tools);
+	exposeAgentHooks(tools);
 	if (!isWebMCPAvailable()) return;
 
 	const controllers = new Map<string, AbortController>();
@@ -98,7 +105,7 @@ export async function registerTools(tools: Tool[]) {
 		}
 	}
 
-	exposeTools(tools);
+	exposeAgentHooks(tools);
 
 	if (added.length || removed.length) {
 		addAction({

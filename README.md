@@ -4,7 +4,11 @@ A miniature internet built for humans and AI agents.
 
 **Built for the OpenAI WebMCP Challenge (Aug 25 – Sep 3, 2026).**
 
-Live demo: *https://agent-city.pages.dev* (deploy via `npm run deploy`)
+Live demo: **https://agent-city.imyash-chaudhary2.workers.dev**
+
+Public repository: **https://github.com/imYashChaudhary973/Agent-City**
+
+License: **MIT**
 
 ## The Experiment
 
@@ -111,6 +115,47 @@ This builds the Vite app and deploys the Worker + static assets to Cloudflare Wo
 ## Why WebMCP?
 
 Traditional agents read the DOM, interpret UI, click, and hope. WebMCP lets a website declare what it can do: discoverable, typed, state-aware tools. Agent City demonstrates that duality with a shared human/agent UI, a live WebMCP inspector, and visible agent reasoning.
+
+## What People and Agents Can Do Together
+
+Before WebMCP, an agent could only operate a website by guessing how its buttons and forms worked. A human and an agent could not share live state or collaborate on the same task inside one application.
+
+Agent City makes that possible:
+
+- **Humans** use the visual city interface to search venues, order catering, pick calendar slots, and adjust the budget.
+- **Agents** use the exact same WebMCP tools to perform the same actions, with their calls logged in the inspector.
+- **Both** see the same event plan update live. When the agent reserves a venue, the human UI immediately shows "Reserved." When the human changes the attendee count, the agent sees new tool availability and can replan.
+- **Sensitive actions** pause for human approval before executing, so the agent never mutates state without consent.
+
+## How WebMCP Is Implemented
+
+Agent City uses the imperative WebMCP API:
+
+```ts
+await document.modelContext.registerTool({
+  name: 'search_venues',
+  description: 'Search Agent City venues by capacity, price, and date.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      minimumCapacity: { type: 'integer' },
+      maximumPrice: { type: 'number' },
+      date: { type: 'string' }
+    },
+    required: ['minimumCapacity']
+  },
+  execute: async (input) => { /* query app state and return results */ }
+});
+```
+
+Key implementation choices:
+
+- **One tool per capability** — no overlapping tools, keeping the agent's context small and selection fast.
+- **Read-only annotations** — search/get tools are marked `readOnlyHint: true` so the agent knows they are safe.
+- **Dynamic tool surface** — tools like `modify_reservation`, `cancel_reservation`, `reschedule_event`, and `cancel_event` are registered only when they become relevant, demonstrating state-aware agent capabilities.
+- **Human-in-the-loop** — write tools (`reserve_venue`, `place_catering_order`, `schedule_event`) can pause for approval through a shared pending-approval store.
+- **Shared state** — the React store and the Worker API both operate on the same event plan, so human clicks and agent tool calls produce identical state changes.
+- **Inspector + activity graph** — every tool call is logged with input, output, duration, and status, and visualized as a live city activity graph.
 
 ## License
 

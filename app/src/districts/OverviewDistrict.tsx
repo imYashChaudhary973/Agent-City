@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useCityStore, updateEvent } from '../store/cityStore';
+import { useCityStore } from '../store/cityStore';
 import { runTool } from '../lib/tools';
 import type { Venue, CateringPackage } from '../types';
 
 export default function OverviewDistrict() {
 	const { event } = useCityStore();
 	const [busy, setBusy] = useState(false);
+	const [selectedAttendees, setSelectedAttendees] = useState(event.attendees);
 	const venueCost = event.venue ? event.venue.price : 0;
 	const cateringCost = event.catering ? event.catering.pricePerPerson * event.attendees : 0;
 	const total = venueCost + cateringCost;
@@ -40,10 +41,10 @@ export default function OverviewDistrict() {
 			const best = candidates[0];
 			if (!best || best.id === event.venue.id) return;
 
-			const costBefore = event.venue.price + (event.catering?.pricePerPerson ?? 0) * event.attendees;
 			const costAfter = best.price + (event.catering?.pricePerPerson ?? 0) * event.attendees;
 			if (costAfter > event.budgetLimit) return;
 
+			await runTool('update_event_requirements', { attendees: event.attendees });
 			await runTool('cancel_reservation', {});
 			await runTool('reserve_venue', { venueId: best.id, attendees: event.attendees, date: event.date });
 
@@ -61,11 +62,18 @@ export default function OverviewDistrict() {
 					if (fallback) {
 						await runTool('place_catering_order', { packageId: fallback.id, people: event.attendees });
 					}
+				} else {
+					await runTool('modify_catering_order', { packageId: current.id, people: event.attendees });
 				}
 			}
 		} finally {
 			setBusy(false);
 		}
+	}
+
+	async function adjustAttendees(n: number) {
+		setSelectedAttendees(n);
+		await runTool('update_event_requirements', { attendees: n });
 	}
 
 	return (
@@ -151,9 +159,9 @@ export default function OverviewDistrict() {
 						{[12, 16, 20, 24].map((n) => (
 							<button
 								key={n}
-								onClick={() => updateEvent({ attendees: n })}
+								onClick={() => adjustAttendees(n)}
 								className={`rounded-md border px-4 py-2 text-sm ${
-									event.attendees === n
+									selectedAttendees === n
 										? 'border-city-accent bg-city-accent/20 text-white'
 										: 'border-city-border text-city-muted hover:bg-white/5'
 								}`}

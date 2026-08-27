@@ -172,14 +172,8 @@ export function generateSlots(): CalendarSlot[] {
 				date,
 				startTime: starts[i],
 				endTime: `${parseInt(starts[i].split(':')[0]) + 1}:00`,
-				available: Math.random() > 0.35,
+				available: true,
 			});
-		}
-	}
-	// force the killer demo slots to be available
-	for (const s of slots) {
-		if ((s.date === '2026-08-28' || s.date === '2026-08-30') && s.startTime === '14:00') {
-			s.available = true;
 		}
 	}
 	return slots;
