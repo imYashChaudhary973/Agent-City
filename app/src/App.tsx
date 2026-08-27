@@ -54,7 +54,7 @@ export default function App() {
 						{district === 'budget' && <BudgetDistrict />}
 					</div>
 
-					<div className="h-52 border-t border-city-border bg-city-panel/40 p-4">
+					<div className="h-80 border-t border-city-border bg-city-panel/40 p-4">
 						<CityGraph />
 					</div>
 				</section>

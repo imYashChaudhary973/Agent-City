@@ -13,9 +13,32 @@ export default function CityGraph() {
 
 	const last = actions[0];
 
+	function Node({
+		label,
+		color,
+		isActive,
+		selected,
+	}: {
+		label: string;
+		color: string;
+		isActive: boolean;
+		selected?: boolean;
+	}) {
+		return (
+			<div
+				className={`flex h-14 w-24 flex-col items-center justify-center rounded-lg border-2 px-1 text-center text-xs font-semibold transition-all duration-300 ${
+					isActive ? `border-${color} text-white shadow-[0_0_20px_rgba(99,102,241,0.35)]` : `border-city-border text-city-muted`
+				} ${selected ? `bg-${color}/20` : 'bg-city-panel/60'}`}
+			>
+				{selected && <span className="leading-none text-city-success">✓</span>}
+				<span className={selected ? 'text-white' : ''}>{label}</span>
+			</div>
+		);
+	}
+
 	return (
-		<div className="flex h-full flex-col">
-			<div className="mb-3 flex items-center justify-between">
+		<div className="flex h-full flex-col p-4">
+			<div className="mb-2 flex items-center justify-between">
 				<span className="font-mono text-xs text-city-muted">CITY ACTIVITY</span>
 				{last && (
 					<span className="font-mono text-xs text-city-success">
@@ -25,30 +48,38 @@ export default function CityGraph() {
 			</div>
 
 			<div className="relative flex flex-1 items-center justify-center">
-				<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
+				<div className="grid grid-cols-3 grid-rows-3 items-center gap-3">
+					{/* top: venue */}
 					<div />
-					<div className={`node h-16 w-28 border-city-venue bg-city-venue/10 text-city-venue ${active.venue ? 'active !border-city-venue' : ''}`}>
-						VENUE
+					<div className="flex flex-col items-center gap-1">
+						<div className="h-4 w-px bg-city-border" />
+						<Node label="VENUE" color="city-venue" isActive={active.venue} selected={!!event.venue} />
 					</div>
 					<div />
 
-					<div className={`node h-16 w-28 border-city-catering bg-city-catering/10 text-city-catering ${active.catering ? 'active !border-city-catering' : ''}`}>
-						CATERING
+					{/* middle: catering - event - calendar */}
+					<div className="flex flex-col items-center gap-1">
+						<Node label="CATERING" color="city-catering" isActive={active.catering} selected={!!event.catering} />
+						<div className="h-4 w-px bg-city-border" />
 					</div>
 					<div className="flex flex-col items-center gap-2">
-						<div className={`edge w-16 ${active.event ? 'active' : ''}`} />
-						<div className={`node h-20 w-32 border-city-accent bg-city-accent/10 text-city-accent ${active.event ? 'active' : ''}`}>
-							EVENT
+						<div className="flex items-center gap-1">
+							<div className="h-px w-6 bg-city-border" />
+							<Node label="EVENT" color="city-accent" isActive={active.event} selected={event.status === 'scheduled'} />
+							<div className="h-px w-6 bg-city-border" />
 						</div>
-						<div className={`edge w-16 ${active.event ? 'active' : ''}`} />
+						<div className="h-4 w-px bg-city-border" />
 					</div>
-					<div className={`node h-16 w-28 border-city-calendar bg-city-calendar/10 text-city-calendar ${active.calendar ? 'active !border-city-calendar' : ''}`}>
-						CALENDAR
+					<div className="flex flex-col items-center gap-1">
+						<Node label="CALENDAR" color="city-calendar" isActive={active.calendar} selected={!!event.calendarSlot} />
+						<div className="h-4 w-px bg-city-border" />
 					</div>
 
+					{/* bottom: budget */}
 					<div />
-					<div className={`node h-16 w-28 border-city-budget bg-city-budget/10 text-city-budget ${active.budget ? 'active !border-city-budget' : ''}`}>
-						BUDGET
+					<div className="flex flex-col items-center gap-1">
+						<Node label="BUDGET" color="city-budget" isActive={active.budget} selected={event.venue !== null && event.catering !== null} />
+						<div className="h-4 w-px bg-city-border" />
 					</div>
 					<div />
 				</div>
