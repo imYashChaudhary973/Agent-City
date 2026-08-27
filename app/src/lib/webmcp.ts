@@ -9,7 +9,7 @@ function isWebMCPAvailable(): boolean {
 
 function wrapExecute(
 	name: string,
-	execute: (input: unknown, options: { signal: AbortSignal }) => Promise<unknown>
+	execute: (input: unknown, options: { signal: AbortSignal; bypassApproval?: boolean }) => Promise<unknown>
 ): (input: unknown, options: { signal: AbortSignal }) => Promise<unknown> {
 	return async (input: unknown, options: { signal: AbortSignal }) => {
 		const id = crypto.randomUUID();
@@ -29,7 +29,30 @@ function wrapExecute(
 	};
 }
 
+export function exposeTools(tools: Tool[]) {
+	try {
+		const w = window as any;
+		const map: Record<string, Tool> = {};
+		for (const t of tools) map[t.name] = t;
+		w.__agentCityTools = tools.map((t) => ({ name: t.name, description: t.description, schema: t.inputSchema }));
+		w.__agentCityToolMap = map;
+		w.__agentCityState = () => {
+			const { getCityState } = require('../store/cityStore');
+			return getCityState();
+		};
+		w.__agentCityRegisterNow = () => {
+			const { getCityState } = require('../store/cityStore');
+			const { availableTools } = require('./tools');
+			return registerTools(availableTools(getCityState()));
+		};
+		console.log('[exposeTools] exposed', tools.length, 'tools');
+	} catch (e) {
+		console.error('[exposeTools] failed', e);
+	}
+}
+
 export async function registerTools(tools: Tool[]) {
+	exposeTools(tools);
 	if (!isWebMCPAvailable()) return;
 
 	const controllers = new Map<string, AbortController>();
@@ -74,6 +97,8 @@ export async function registerTools(tools: Tool[]) {
 			removed.push(name);
 		}
 	}
+
+	exposeTools(tools);
 
 	if (added.length || removed.length) {
 		addAction({

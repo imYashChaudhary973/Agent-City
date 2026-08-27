@@ -15,13 +15,18 @@ export interface ToolAnnotations {
 	untrustedContentHint?: boolean;
 }
 
+export interface ExecuteOptions {
+	signal: AbortSignal;
+	bypassApproval?: boolean;
+}
+
 export interface Tool {
 	name: string;
 	title?: string;
 	description: string;
 	inputSchema?: JSONSchema;
 	annotations?: ToolAnnotations;
-	execute: (input: unknown, options: { signal: AbortSignal }) => Promise<unknown>;
+	execute: (input: unknown, options: ExecuteOptions) => Promise<unknown>;
 }
 
 export interface RegisteredToolInfo {

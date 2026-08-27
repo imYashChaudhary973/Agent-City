@@ -53,6 +53,11 @@ export function useCityStore(): CityState {
 	);
 }
 
+export function subscribeCity(callback: () => void): () => void {
+	listeners.add(callback);
+	return () => listeners.delete(callback);
+}
+
 export function getCityState(): CityState {
 	return state;
 }

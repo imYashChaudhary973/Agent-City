@@ -1,17 +1,7 @@
 import { useState } from 'react';
-import { useCityStore, updateEvent } from '../store/cityStore';
-import { apiFetch } from '../lib/api';
-import type { CalendarSlot, Budget } from '../types';
-
-interface SlotsResponse {
-	matches: CalendarSlot[];
-	count: number;
-}
-
-interface EventUpdateResponse {
-	event: Partial<EventPlan>;
-	budget?: Budget;
-}
+import { useCityStore } from '../store/cityStore';
+import { runTool } from '../lib/tools';
+import type { CalendarSlot } from '../types';
 
 export default function CalendarDistrict() {
 	const { event } = useCityStore();
@@ -22,10 +12,10 @@ export default function CalendarDistrict() {
 	async function search() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<SlotsResponse>('/calendar/slots', {
-				method: 'POST',
-				body: JSON.stringify({ date: event.date, after: event.startTime }),
-			});
+			const res = (await runTool('find_available_slots', { date: event.date, after: event.startTime })) as {
+				matches: CalendarSlot[];
+				count: number;
+			};
 			setMatches(res.matches);
 			setSearched(true);
 		} finally {
@@ -36,11 +26,7 @@ export default function CalendarDistrict() {
 	async function schedule(slot: CalendarSlot) {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/calendar/schedule', {
-				method: 'POST',
-				body: JSON.stringify({ slotId: slot.id }),
-			});
-			updateEvent(res.event);
+			await runTool('schedule_event', { slotId: slot.id });
 		} finally {
 			setBusy(false);
 		}
@@ -49,8 +35,7 @@ export default function CalendarDistrict() {
 	async function cancel() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/calendar/cancel', { method: 'POST' });
-			updateEvent(res.event);
+			await runTool('cancel_event', {});
 		} finally {
 			setBusy(false);
 		}
@@ -64,7 +49,7 @@ export default function CalendarDistrict() {
 					onClick={search}
 					disabled={busy}
 					className="rounded-md bg-city-calendar/20 px-4 py-2 text-sm font-medium text-city-calendar transition hover:bg-city-calendar/30 disabled:opacity-50"
->
+				>
 					{busy && !searched ? 'Finding…' : 'Find slots'}
 				</button>
 			</div>
@@ -83,7 +68,7 @@ export default function CalendarDistrict() {
 							onClick={cancel}
 							disabled={busy}
 							className="rounded-md border border-city-danger/50 px-3 py-1.5 text-sm text-city-danger hover:bg-city-danger/10 disabled:opacity-50"
->
+						>
 								Cancel
 							</button>
 						</div>

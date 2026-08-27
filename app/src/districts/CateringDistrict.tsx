@@ -1,17 +1,7 @@
 import { useState } from 'react';
-import { useCityStore, updateEvent } from '../store/cityStore';
-import { apiFetch } from '../lib/api';
-import type { CateringPackage, Budget } from '../types';
-
-interface CateringSearchResponse {
-	matches: CateringPackage[];
-	count: number;
-}
-
-interface EventUpdateResponse {
-	event: Partial<EventPlan>;
-	budget?: Budget;
-}
+import { useCityStore } from '../store/cityStore';
+import { runTool } from '../lib/tools';
+import type { CateringPackage } from '../types';
 
 export default function CateringDistrict() {
 	const { event } = useCityStore();
@@ -22,14 +12,11 @@ export default function CateringDistrict() {
 	async function search() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<CateringSearchResponse>('/catering/search', {
-				method: 'POST',
-				body: JSON.stringify({
-					people: event.attendees,
-					dietaryPreference: event.dietaryPreference,
-					maximumPricePerPerson: Math.floor(event.budgetLimit / event.attendees),
-				}),
-			});
+			const res = (await runTool('search_catering', {
+				people: event.attendees,
+				dietaryPreference: event.dietaryPreference,
+				maximumPricePerPerson: Math.floor(event.budgetLimit / event.attendees),
+			})) as { matches: CateringPackage[]; count: number };
 			setMatches(res.matches);
 			setSearched(true);
 		} finally {
@@ -40,11 +27,7 @@ export default function CateringDistrict() {
 	async function order(pkg: CateringPackage) {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/catering/order', {
-				method: 'POST',
-				body: JSON.stringify({ packageId: pkg.id, people: event.attendees }),
-			});
-			updateEvent(res.event);
+			await runTool('place_catering_order', { packageId: pkg.id, people: event.attendees });
 		} finally {
 			setBusy(false);
 		}
@@ -53,8 +36,7 @@ export default function CateringDistrict() {
 	async function cancel() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/catering/cancel', { method: 'POST' });
-			updateEvent(res.event);
+			await runTool('cancel_catering_order', {});
 		} finally {
 			setBusy(false);
 		}
@@ -68,7 +50,7 @@ export default function CateringDistrict() {
 					onClick={search}
 					disabled={busy}
 					className="rounded-md bg-city-catering/20 px-4 py-2 text-sm font-medium text-city-catering transition hover:bg-city-catering/30 disabled:opacity-50"
->
+				>
 					{busy && !searched ? 'Searching…' : 'Search catering'}
 				</button>
 			</div>
@@ -107,7 +89,7 @@ export default function CateringDistrict() {
 							onClick={cancel}
 							disabled={busy}
 							className="rounded-md border border-city-danger/50 px-3 py-1.5 text-sm text-city-danger hover:bg-city-danger/10 disabled:opacity-50"
->
+						>
 								Cancel
 							</button>
 						</div>

@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { useCityStore, updateEvent } from '../store/cityStore';
+import { runTool } from '../lib/tools';
+import type { Venue, CateringPackage } from '../types';
 
 export default function OverviewDistrict() {
 	const { event } = useCityStore();
+	const [busy, setBusy] = useState(false);
 	const venueCost = event.venue ? event.venue.price : 0;
 	const cateringCost = event.catering ? event.catering.pricePerPerson * event.attendees : 0;
 	const total = venueCost + cateringCost;
@@ -18,6 +22,51 @@ export default function OverviewDistrict() {
 		{ label: 'Diet', value: event.dietaryPreference, valid: dietValid },
 		{ label: 'Start', value: event.startTime, valid: startValid },
 	];
+
+	async function autoReplan() {
+		if (!event.venue) return;
+		setBusy(true);
+		try {
+			const search = (await runTool('search_venues', {
+				minimumCapacity: event.attendees,
+				maximumPrice: event.budgetLimit,
+				date: event.date,
+			})) as { matches: Venue[] };
+
+			const candidates = search.matches
+				.filter((v) => v.capacity >= event.attendees)
+				.sort((a, b) => a.capacity - b.capacity || a.price - b.price);
+
+			const best = candidates[0];
+			if (!best || best.id === event.venue.id) return;
+
+			const costBefore = event.venue.price + (event.catering?.pricePerPerson ?? 0) * event.attendees;
+			const costAfter = best.price + (event.catering?.pricePerPerson ?? 0) * event.attendees;
+			if (costAfter > event.budgetLimit) return;
+
+			await runTool('cancel_reservation', {});
+			await runTool('reserve_venue', { venueId: best.id, attendees: event.attendees, date: event.date });
+
+			if (event.catering) {
+				const current = event.catering;
+				const stillAffordable = best.price + current.pricePerPerson * event.attendees <= event.budgetLimit;
+				if (!stillAffordable) {
+					await runTool('cancel_catering_order', {});
+					const catering = (await runTool('search_catering', {
+						people: event.attendees,
+						dietaryPreference: event.dietaryPreference,
+						maximumPricePerPerson: Math.floor((event.budgetLimit - best.price) / event.attendees),
+					})) as { matches: CateringPackage[] };
+					const fallback = catering.matches[0];
+					if (fallback) {
+						await runTool('place_catering_order', { packageId: fallback.id, people: event.attendees });
+					}
+				}
+			}
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	return (
 		<div className="space-y-6">
@@ -55,7 +104,7 @@ export default function OverviewDistrict() {
 
 				<div className="panel p-4">
 					<div className="mb-1 font-mono text-xs text-city-budget">BUDGET</div>
-					<div className="text-lg font-semibold">₹{total} / ₹{event.budgetLimit}</div>
+					<div className="text-2xl font-bold">₹{total} / ₹{event.budgetLimit}</div>
 					<div className={`mt-1 text-xs ${remaining >= 0 ? 'text-city-success' : 'text-city-danger'}`}>
 						{remaining >= 0 ? `₹${remaining} remaining` : `₹${Math.abs(remaining)} over budget`}
 					</div>
@@ -77,10 +126,19 @@ export default function OverviewDistrict() {
 
 			{!capacityValid && event.venue && (
 				<div className="panel border-l-4 border-l-city-danger p-4">
-					<div className="mb-1 font-mono text-xs text-city-danger">CONSTRAINT VIOLATION</div>
+					<div className="mb-2 flex items-center justify-between">
+						<div className="font-mono text-xs text-city-danger">CONSTRAINT VIOLATION</div>
+						<button
+							onClick={autoReplan}
+							disabled={busy}
+							className="rounded-md bg-city-danger/20 px-3 py-1.5 text-xs font-medium text-city-danger transition hover:bg-city-danger/30 disabled:opacity-50"
+						>
+							{busy ? 'Replanning…' : 'Auto-replan'}
+						</button>
+					</div>
 					<div className="text-sm">
 						Venue {event.venue.name} capacity ({event.venue.capacity}) is less than required attendees ({event.attendees}).
-						Go to <strong>Venues</strong>, search again, and reserve a larger venue.
+						Auto-replan will find a larger venue that still fits the budget.
 					</div>
 				</div>
 			)}

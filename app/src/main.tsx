@@ -4,6 +4,8 @@ import App from './App';
 import './index.css';
 import { apiFetch } from './lib/api';
 import { getCityState, resetCity, updateEvent } from './store/cityStore';
+import { exposeTools } from './lib/webmcp';
+import { availableTools } from './lib/tools';
 
 function DemoAPI() {
 	useEffect(() => {
@@ -36,7 +38,9 @@ function DemoAPI() {
 			setAttendees: (n: number) => updateEvent({ attendees: n }),
 			getState: () => getCityState(),
 		};
-		console.log('Agent City demo API exposed at window.__agentCity');
+		const tools = availableTools(getCityState());
+		exposeTools(tools);
+		console.log('Agent City demo API exposed. Tool count:', tools.length);
 	}, []);
 	return null;
 }

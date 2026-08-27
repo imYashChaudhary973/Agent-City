@@ -1,32 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useCityStore, updateEvent } from '../store/cityStore';
-import { apiFetch } from '../lib/api';
-import type { Budget, EventPlan } from '../types';
-
-interface EventUpdateResponse {
-	event: Partial<EventPlan>;
-	budget?: Budget;
-}
+import { useCityStore } from '../store/cityStore';
+import { runTool } from '../lib/tools';
+import type { Budget } from '../types';
 
 export default function BudgetDistrict() {
 	const { event } = useCityStore();
 	const [budget, setBudget] = useState<Budget | null>(null);
 
 	async function refresh() {
-		const res = await apiFetch<Budget>('/budget/status');
+		const res = (await runTool('get_budget_status', {})) as Budget;
 		setBudget(res);
 	}
 
 	useEffect(() => {
 		refresh();
-	}, [event]);
+	}, [event.venue?.id, event.catering?.id, event.attendees, event.budgetLimit]);
 
 	async function updateLimit(limit: number) {
-		const res = await apiFetch<EventUpdateResponse>('/plan/requirements', {
-			method: 'POST',
-			body: JSON.stringify({ budgetLimit: limit }),
-		});
-		updateEvent(res.event);
+		await runTool('update_event_requirements', { budgetLimit: limit });
 	}
 
 	const venueCost = event.venue ? event.venue.price : 0;
@@ -41,7 +32,7 @@ export default function BudgetDistrict() {
 				<button
 					onClick={refresh}
 					className="rounded-md bg-city-budget/20 px-4 py-2 text-sm font-medium text-city-budget transition hover:bg-city-budget/30"
->
+				>
 					Refresh
 				</button>
 			</div>

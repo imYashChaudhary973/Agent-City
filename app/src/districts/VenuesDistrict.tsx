@@ -1,17 +1,7 @@
 import { useState } from 'react';
-import { useCityStore, updateEvent } from '../store/cityStore';
-import { apiFetch } from '../lib/api';
-import type { Venue, Budget } from '../types';
-
-interface VenueSearchResponse {
-	matches: Venue[];
-	count: number;
-}
-
-interface EventUpdateResponse {
-	event: Partial<EventPlan>;
-	budget?: Budget;
-}
+import { useCityStore } from '../store/cityStore';
+import { runTool } from '../lib/tools';
+import type { Venue } from '../types';
 
 export default function VenuesDistrict() {
 	const { event } = useCityStore();
@@ -22,14 +12,11 @@ export default function VenuesDistrict() {
 	async function search() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<VenueSearchResponse>('/venues/search', {
-				method: 'POST',
-				body: JSON.stringify({
-					minimumCapacity: event.attendees,
-					maximumPrice: event.budgetLimit,
-					date: event.date,
-				}),
-			});
+			const res = (await runTool('search_venues', {
+				minimumCapacity: event.attendees,
+				maximumPrice: event.budgetLimit,
+				date: event.date,
+			})) as { matches: Venue[]; count: number };
 			setMatches(res.matches);
 			setSearched(true);
 		} finally {
@@ -40,11 +27,7 @@ export default function VenuesDistrict() {
 	async function reserve(venue: Venue) {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/venues/reserve', {
-				method: 'POST',
-				body: JSON.stringify({ venueId: venue.id, attendees: event.attendees, date: event.date }),
-			});
-			updateEvent(res.event);
+			await runTool('reserve_venue', { venueId: venue.id, attendees: event.attendees, date: event.date });
 		} finally {
 			setBusy(false);
 		}
@@ -53,8 +36,7 @@ export default function VenuesDistrict() {
 	async function cancel() {
 		setBusy(true);
 		try {
-			const res = await apiFetch<EventUpdateResponse>('/venues/cancel', { method: 'POST' });
-			updateEvent(res.event);
+			await runTool('cancel_reservation', {});
 		} finally {
 			setBusy(false);
 		}
@@ -68,7 +50,7 @@ export default function VenuesDistrict() {
 					onClick={search}
 					disabled={busy}
 					className="rounded-md bg-city-venue/20 px-4 py-2 text-sm font-medium text-city-venue transition hover:bg-city-venue/30 disabled:opacity-50"
->
+				>
 					{busy && !searched ? 'Searching…' : 'Search for venues'}
 				</button>
 			</div>
@@ -87,17 +69,17 @@ export default function VenuesDistrict() {
 							onClick={cancel}
 							disabled={busy}
 							className="rounded-md border border-city-danger/50 px-3 py-1.5 text-sm text-city-danger hover:bg-city-danger/10 disabled:opacity-50"
->
-								Cancel
-							</button>
-						</div>
-						{event.venue.capacity < event.attendees && (
-							<div className="mt-3 rounded bg-city-danger/10 p-2 text-sm text-city-danger">
-								⚠ Capacity {event.venue.capacity} is less than required {event.attendees}. Search again for a larger venue.
-							</div>
-						)}
+						>
+							Cancel
+						</button>
 					</div>
-				)}
+					{event.venue.capacity < event.attendees && (
+						<div className="mt-3 rounded bg-city-danger/10 p-2 text-sm text-city-danger">
+							⚠ Capacity {event.venue.capacity} is less than required {event.attendees}. Search again for a larger venue.
+						</div>
+					)}
+				</div>
+			)}
 
 			<div className="space-y-3">
 				{searched && matches.length === 0 && <p className="text-city-muted">No venues match your constraints.</p>}

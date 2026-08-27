@@ -11,7 +11,9 @@ import type {
 	UpdateRequirementsBody,
 } from './api';
 import { apiFetch } from './api';
-import { addPendingApproval, getApprovalOutcome, setApprovalOutcome, updateEvent } from '../store/cityStore';
+import { addPendingApproval, getApprovalOutcome, setApprovalOutcome, updateEvent, getCityState } from '../store/cityStore';
+import type { ExecuteOptions } from '../types/webmcp';
+import { addAction, updateAction } from '../store/cityStore';
 
 function readString(obj: unknown, key: string): string | undefined {
 	if (obj && typeof obj === 'object' && key in obj) {
@@ -35,6 +37,13 @@ function needsApproval(toolName: string): boolean {
 	return writeTools.includes(toolName) || destructiveTools.includes(toolName);
 }
 
+function extractOptions(options: ExecuteOptions | AbortSignal): { signal: AbortSignal; bypassApproval: boolean } {
+	if (options instanceof AbortSignal || !options || typeof options !== 'object') {
+		return { signal: options as AbortSignal, bypassApproval: false };
+	}
+	return { signal: options.signal, bypassApproval: options.bypassApproval ?? false };
+}
+
 function describeAction(toolName: string, input: unknown): string {
 	switch (toolName) {
 		case 'reserve_venue':
@@ -54,7 +63,9 @@ function describeAction(toolName: string, input: unknown): string {
 	}
 }
 
-async function requestApproval(toolName: string, input: unknown, signal: AbortSignal): Promise<void> {
+async function requestApproval(toolName: string, input: unknown, rawOptions: ExecuteOptions | AbortSignal): Promise<void> {
+	const { signal, bypassApproval } = extractOptions(rawOptions);
+	if (bypassApproval) return;
 	const approvalId = crypto.randomUUID();
 	addPendingApproval({ id: approvalId, tool: toolName, input, description: describeAction(toolName, input) });
 	const { promise, resolve, reject } = Promise.withResolvers<void>();
@@ -85,9 +96,9 @@ function tool(
 	description: string,
 	schema: JSONSchema,
 	annotations: ToolAnnotations | undefined,
-	execute: (input: unknown, signal: AbortSignal) => Promise<unknown>
+	execute: (input: unknown, options: ExecuteOptions) => Promise<unknown>
 ): Tool {
-	return { name, title, description, inputSchema: schema, annotations, execute: (input, options) => execute(input, options.signal) };
+	return { name, title, description, inputSchema: schema, annotations, execute };
 }
 
 function venueSearchSchema(): JSONSchema {
@@ -228,24 +239,24 @@ export function availableTools(state: CityState): Tool[] {
 	);
 
 	tools.push(
-		tool('reserve_venue', 'Reserve Venue', 'Reserve a venue for the event. Requires human approval.', reserveVenueSchema(), undefined, async (input, signal) => {
-			if (needsApproval('reserve_venue')) await requestApproval('reserve_venue', input, signal);
+		tool('reserve_venue', 'Reserve Venue', 'Reserve a venue for the event. Requires human approval.', reserveVenueSchema(), undefined, async (input, options) => {
+			if (needsApproval('reserve_venue')) await requestApproval('reserve_venue', input, options);
 			const body: ReserveVenueBody = { venueId: readString(input, 'venueId') ?? '', attendees: readNumber(input, 'attendees') ?? state.event.attendees, date: readString(input, 'date') ?? state.event.date };
 			const res = await apiFetch('/venues/reserve', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
 			return res;
 		}),
 
-		tool('place_catering_order', 'Order Catering', 'Place a catering order for the event. Requires human approval.', orderCateringSchema(), undefined, async (input, signal) => {
-			if (needsApproval('place_catering_order')) await requestApproval('place_catering_order', input, signal);
+		tool('place_catering_order', 'Order Catering', 'Place a catering order for the event. Requires human approval.', orderCateringSchema(), undefined, async (input, options) => {
+			if (needsApproval('place_catering_order')) await requestApproval('place_catering_order', input, options);
 			const body: PlaceCateringBody = { packageId: readString(input, 'packageId') ?? '', people: readNumber(input, 'people') ?? state.event.attendees };
 			const res = await apiFetch('/catering/order', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
 			return res;
 		}),
 
-		tool('schedule_event', 'Schedule Event', 'Schedule the event in a calendar slot. Requires human approval.', scheduleSchema(), undefined, async (input, signal) => {
-			if (needsApproval('schedule_event')) await requestApproval('schedule_event', input, signal);
+		tool('schedule_event', 'Schedule Event', 'Schedule the event in a calendar slot. Requires human approval.', scheduleSchema(), undefined, async (input, options) => {
+			if (needsApproval('schedule_event')) await requestApproval('schedule_event', input, options);
 			const body: ScheduleEventBody = { slotId: readString(input, 'slotId') ?? '' };
 			const res = await apiFetch('/calendar/schedule', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
@@ -262,12 +273,12 @@ export function availableTools(state: CityState): Tool[] {
 				return res;
 			}),
 
-			tool('cancel_reservation', 'Cancel Reservation', 'Cancel the current venue reservation. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, signal) => {
-				if (needsApproval('cancel_reservation')) await requestApproval('cancel_reservation', {}, signal);
+						tool('cancel_reservation', 'Cancel Reservation', 'Cancel the current venue reservation. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
+				if (needsApproval('cancel_reservation')) await requestApproval('cancel_reservation', {}, options);
 				const res = await apiFetch('/venues/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
-			})
+			}),
 		);
 	}
 
@@ -280,8 +291,8 @@ export function availableTools(state: CityState): Tool[] {
 				return res;
 			}),
 
-			tool('cancel_catering_order', 'Cancel Catering', 'Cancel the current catering order. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, signal) => {
-				if (needsApproval('cancel_catering_order')) await requestApproval('cancel_catering_order', {}, signal);
+			tool('cancel_catering_order', 'Cancel Catering', 'Cancel the current catering order. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
+				if (needsApproval('cancel_catering_order')) await requestApproval('cancel_catering_order', {}, options);
 				const res = await apiFetch('/catering/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
@@ -298,8 +309,8 @@ export function availableTools(state: CityState): Tool[] {
 				return res;
 			}),
 
-			tool('cancel_event', 'Cancel Event', 'Cancel the scheduled event. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, signal) => {
-				if (needsApproval('cancel_event')) await requestApproval('cancel_event', {}, signal);
+			tool('cancel_event', 'Cancel Event', 'Cancel the scheduled event. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
+				if (needsApproval('cancel_event')) await requestApproval('cancel_event', {}, options);
 				const res = await apiFetch('/calendar/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
@@ -308,4 +319,26 @@ export function availableTools(state: CityState): Tool[] {
 	}
 
 	return tools;
+}
+
+export async function runTool(toolName: string, input: unknown, bypassApproval = true): Promise<unknown> {
+	const state = getCityState();
+	const tools = availableTools(state);
+	const tool = tools.find((t) => t.name === toolName);
+	if (!tool) throw new Error(`Tool ${toolName} not available`);
+	const id = crypto.randomUUID();
+	const start = performance.now();
+	addAction({ id, tool: toolName, input, result: null, duration: 0, ts: Date.now(), status: 'pending' });
+	try {
+		const result = await tool.execute(input, { signal: new AbortController().signal, bypassApproval });
+		const duration = Math.round(performance.now() - start);
+		updateAction(id, { result, duration, status: 'success' });
+		return result;
+	} catch (err) {
+		const duration = Math.round(performance.now() - start);
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`runTool ${toolName} failed:`, message);
+		updateAction(id, { result: { error: message }, duration, status: 'error' });
+		throw err;
+	}
 }
