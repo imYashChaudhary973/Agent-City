@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-city-bg: #0a0a0f;
+	--color-city-panel: #12121a;
+	--color-city-border: #2a2a3a;
+	--color-city-accent: #6366f1;
+	--color-city-glow: #818cf8;
+	--color-city-muted: #6b7280;
+	--color-city-venue: #06b6d4;
+	--color-city-catering: #22c55e;
+	--color-city-calendar: #f59e0b;
+	--color-city-budget: #ec4899;
+	--color-city-success: #10b981;
+	--color-city-warning: #f59e0b;
+	--color-city-danger: #ef4444;
+}
+
+:root {
+	color-scheme: dark;
+}
+
+body {
+	font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-mono {
+	font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.city-grid {
+	background-image:
+		linear-gradient(rgba(99, 102, 241, 0.08) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(99, 102, 241, 0.08) 1px, transparent 1px);
+	background-size: 40px 40px;
+}
+
+.panel {
+	@apply bg-city-panel/80 border border-city-border rounded-lg backdrop-blur-sm;
+}
+
+.node {
+	@apply flex items-center justify-center rounded-xl border font-semibold text-sm transition-all duration-300;
+}
+
+.node.active {
+	@apply shadow-[0_0_24px_rgba(99,102,241,0.35)] border-city-accent text-white;
+}
+
+.edge {
+	@apply h-px bg-city-border transition-colors duration-300;
+}
+
+.edge.active {
+	@apply bg-city-accent shadow-[0_0_8px_rgba(99,102,241,0.6)];
+}
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #2a2a3a;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #3f3f55;
+}

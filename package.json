@@ -1,0 +1,33 @@
+{
+	"name": "agent-city",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"dev:app": "cd app && vite",
+		"build:app": "cd app && vite build",
+		"dev": "wrangler dev",
+		"deploy": "npm run build:app && wrangler deploy",
+		"start": "wrangler dev",
+		"test": "vitest",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.0.0",
+		"@tailwindcss/vite": "^4.3.3",
+		"@types/node": "^26.4.0",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.5",
+		"@vitejs/plugin-react": "^6.1.0",
+		"autoprefixer": "^10.5.4",
+		"postcss": "^8.5.26",
+		"tailwindcss": "^4.3.3",
+		"typescript": "^5.9.3",
+		"vite": "^8.2.2",
+		"vitest": "~4.1.0",
+		"wrangler": "^4.126.0"
+	},
+	"dependencies": {
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8"
+	}
+}
