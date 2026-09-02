@@ -16,7 +16,7 @@ WebMCP is the right fit because:
 - **Tool discovery replaces DOM guessing.** The agent does not need to interpret buttons, forms, or cards. It reads `document.modelContext` and gets schemas.
 - **State-aware capabilities.** Tools appear and disappear as the event plan evolves, matching Chrome's guidance to register only relevant tools.
 - **Shared state between human and agent.** Every tool execution mutates the same React store that the human UI reads, so both operators see identical live results.
-- **Observable reasoning.** The WebMCP inspector and city activity graph make agent behavior visible to the user, which is hard to achieve with screenshot-based agents.
+- **Observable reasoning.** The agent pane and the city map make agent behavior visible to the user, which is hard to achieve with screenshot-based agents.
 
 ---
 
@@ -29,7 +29,7 @@ Agent City creates a better experience by:
 - **Transparency:** every agent action is logged with tool name, input, output, duration, and status.
 - **Control:** write tools can pause for human approval before mutating state.
 - **Shared context:** when the agent reserves a venue, the human sees it instantly; when the human adjusts attendees, the agent sees the constraint violation and can replan.
-- **No mode switching:** the human does not leave the app to verify what the agent did. The inspector is part of the same interface.
+- **No mode switching:** the human does not leave the app to verify what the agent did. The agent pane sits beside the city in the same interface.
 
 ---
 
@@ -66,26 +66,34 @@ await document.modelContext.registerTool({
 
 Implementation details:
 
-- **Tool design:** one clear capability per tool; read tools annotated; write tools require approval.
-- **Dynamic registration:** `modify_reservation`, `cancel_reservation`, `reschedule_event`, and `cancel_event` are registered only when relevant.
-- **Shared executors:** human UI buttons and WebMCP agent calls route through the same `runTool()` path, so the inspector logs both.
+- **Tool design:** one clear capability per tool; read tools annotated `readOnlyHint: true`; every write tool that books, rebooks, or cancels requires approval.
+- **One approval gate:** `needsApproval()` in `app/src/lib/cityEvents.ts` is the only definition of the gated set, so the modal, the executors, and the city cannot drift apart. `update_event_requirements` is deliberately outside it — it edits planning parameters and never books or spends.
+- **Dynamic registration:** `modify_reservation`, `cancel_reservation`, `modify_catering_order`, `cancel_catering_order`, `reschedule_event`, and `cancel_event` are registered only when the matching commitment exists.
+- **Shared executors:** human UI buttons and WebMCP agent calls route through the same `runTool()` path, so the agent pane logs both.
 - **State management:** a shared React store holds the event plan; the Worker API computes budget and availability from an `x-agent-city-plan` header.
-- **Approval flow:** write tools add a pending approval entry; the UI shows an approval modal; execution continues only after user approval.
+- **Demo data:** the Worker's datasets are deterministic but calendar-relative (`demoDates()` in `src/data.ts`, day 0 = today UTC), so "tomorrow afternoon" is always bookable without editing fixtures.
+- **Approval flow:** a gated tool adds a pending approval entry, parks its courier at City Hall, and shows the approval modal; execution continues only after the user approves.
 
 Key files:
 
 - `app/src/lib/tools.ts` — tool definitions, schemas, and executors
 - `app/src/lib/webmcp.ts` — WebMCP registration, dynamic tool surface, window hooks
+- `app/src/lib/cityEvents.ts` — pure tool → district/route mapping and `needsApproval()`, the single source of truth for the approval gate
+- `app/src/lib/agentView.ts` — pure derivation of the action stream into per-tool phases and schema summaries
 - `app/src/hooks/useWebMCP.ts` — registers tools when state changes
-- `app/src/components/Inspector.tsx` — live tool inspector
+- `app/src/hooks/useCityTrips.ts` — courier animation state machine driven off the action stream
+- `app/src/components/AgentPane.tsx` — live tool inspector: what the agent currently sees
+- `app/src/components/City.tsx` — the city stage: districts, roads, and couriers
+- `app/src/components/EventSite.tsx` — the event plan rendered at the centre of the map
 - `app/src/districts/OverviewDistrict.tsx` — auto-replan UI
 - `src/index.ts` — Cloudflare Worker API
+- `src/data.ts` — deterministic, calendar-relative datasets
 
 ---
 
 ## 5. Project Timeline and Prior vs New Work
 
-Agent City was created inside the hackathon submission window. All WebMCP-specific work was added between **2026-08-27 12:51 IST and 2026-08-27 14:16 IST** as shown by the commit history below. There is no pre-existing production version or prior public release.
+Agent City was created inside the hackathon submission window, across two working sessions: **2026-08-27 (12:51–18:11 IST)** and **2026-09-02**. There is no pre-existing production version or prior public release.
 
 | Commit | Timestamp (IST) | What was added |
 |---|---|---|
@@ -95,6 +103,9 @@ Agent City was created inside the hackathon submission window. All WebMCP-specif
 | `9e7dea7` | 2026-08-27 13:25:36 | Improved city graph readability and district selection UX |
 | `559c21b` | 2026-08-27 13:38:11 | End-to-end demo scenario with constraint violation and replan flow |
 | `96b9b62` | 2026-08-27 14:16:13 | Routed human UI through WebMCP tools; added agent replan driver and prompts |
+| `8382cfa` | 2026-08-27 18:11:31 | Submission docs, deterministic calendar slots, human UI routed through tools |
+
+The 2026-09-02 session is a single further commit landing with these docs. It contains no new product scope — it is the post-audit pass: the agent pane and city stage replacing the old inspector and graph, the pure `cityEvents`/`agentView` modules behind them, calendar-relative datasets so the demo prompt never falls off the end of a fixed date range, cancellation actually clearing the plan, the approval gate widened to every tool that books or rebooks, and Worker API tests plus a `typecheck` script covering the frontend for the first time.
 
 The entire repository was built during the submission period. No prior work is claimed.
 
@@ -118,7 +129,9 @@ After the agent completes it, try:
 
 > Actually, 8 more developers are coming, so make it 20 people total. Stay under ₹10,000.
 
-You can also use the agent driver in `agent-test/browser-run.js` inside a Cloudflare Browser Run session or browser console.
+You can also use the agent driver in `agent-test/browser-run.js` inside a Cloudflare Browser Run session or the browser console — it calls the same approval-gated executors, so gated steps wait for a click in the app.
+
+Locally: `npm install && npm run build:app && npm run dev` serves the whole thing on http://localhost:8787. `npm test` runs the Worker API tests (Vitest on the Cloudflare Workers pool) and `npm run typecheck` typechecks the Worker, the app, and the tests.
 
 ---
 

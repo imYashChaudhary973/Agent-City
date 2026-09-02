@@ -35,7 +35,6 @@ export interface SlotsSearchParams {
 	date?: string;
 	after?: string;
 	before?: string;
-	durationMinutes?: number;
 }
 
 export interface ReserveVenueBody {

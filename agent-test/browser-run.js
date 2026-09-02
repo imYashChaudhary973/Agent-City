@@ -1,37 +1,45 @@
 // Minimal Cloudflare Browser Run / WebMCP agent driver for Agent City.
-// This script assumes it runs in an environment where `document.modelContext`
-// is available and the page has loaded https://agent-city.imyash-chaudhary2.workers.dev
+// Run it in the page — browser console, a Browser Run session, or ChatGPT's
+// in-app browser — once https://agent-city.imyash-chaudhary2.workers.dev has loaded.
+//
+// Calls go through `window.__agentCityToolMap`, the driver hook Agent City
+// exposes in `app/src/lib/webmcp.ts`. Those are the same executors the browser
+// gets, so every call is logged, drawn as a courier on the city map, and
+// approval-gated: reserve_venue, place_catering_order, schedule_event, the
+// modify_* tools and every cancel_* tool park at City Hall until a human
+// clicks Approve in the app. Read tools run straight through.
+//
+// No dates are hardcoded here. The Worker's datasets roll with the calendar
+// (`demoDates()` in `src/data.ts`, day 0 = today UTC), so "tomorrow" is always
+// a bookable day.
 
-async function discoverTools() {
+async function toolMap() {
   // Poll until Agent City has registered its tools.
   for (let i = 0; i < 50; i++) {
-    if (window.__agentCityTools?.length) return window.__agentCityTools;
-    if (document.modelContext?.getRegisteredTools) {
-      const tools = await document.modelContext.getRegisteredTools();
-      if (tools.length) return tools;
-    }
+    const map = window.__agentCityToolMap;
+    if (map && Object.keys(map).length) return map;
     await new Promise((r) => setTimeout(r, 200));
   }
   throw new Error('No WebMCP tools discovered');
 }
 
+async function discoverTools() {
+  return Object.values(await toolMap());
+}
+
 async function runTool(name, input) {
-  // Direct WebMCP call path: use the browser's registered tool execution.
-  if (document.modelContext?.callTool) {
-    return document.modelContext.callTool(name, input);
-  }
-  // Fallback: find the tool registration and call execute directly.
-  const tools = await discoverTools();
-  const t = tools.find((x) => x.name === name);
-  if (!t) throw new Error(`Tool ${name} not found`);
-  if (t.execute) return t.execute(input, { signal: new AbortController().signal });
-  throw new Error(`Tool ${name} has no execute function`);
+  const map = await toolMap();
+  const t = map[name];
+  // Dynamic tools only exist once the matching commitment does.
+  if (!t) throw new Error(`Tool ${name} not available`);
+  return t.execute(input, { signal: new AbortController().signal });
 }
 
 export async function organizeMeetup(attendees = 12, budget = 10000) {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const date = tomorrow.toISOString().split('T')[0];
+  // UTC arithmetic, matching the app store and the Worker's demoDates().
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  const date = d.toISOString().split('T')[0];
 
   const tools = await discoverTools();
   console.log('Discovered tools:', tools.map((t) => t.name));
@@ -62,10 +70,12 @@ export async function organizeMeetup(attendees = 12, budget = 10000) {
     console.log('Ordered', pkg.name);
   }
 
+  // Bounds are inclusive, so the 14:00 slot survives `after: '14:00'`.
   const slots = await runTool('find_available_slots', { date, after: '14:00' });
   console.log('Slots:', slots);
 
-  const slot = slots.slots?.[0];
+  // /calendar/slots answers with `matches`, same as the search endpoints.
+  const slot = slots.matches?.[0];
   if (slot) {
     await runTool('schedule_event', { slotId: slot.id });
     console.log('Scheduled', slot.id);
@@ -81,19 +91,20 @@ export async function bumpAndReplan(attendees = 20, budget = 10000) {
   await runTool('update_event_requirements', { attendees });
   console.log('Updated attendees to', attendees);
 
-  const status = await runTool('get_budget_status', {});
-  if (status.event?.venue?.capacity < attendees) {
+  // The plan lives in get_event_plan; get_budget_status only returns money.
+  const { event } = await runTool('get_event_plan', {});
+  if (event?.venue && event.venue.capacity < attendees) {
     console.log('Capacity violation detected, replanning...');
     const venues = await runTool('search_venues', {
       minimumCapacity: attendees,
       maximumPrice: budget,
-      date: status.event.date,
+      date: event.date,
     });
     const venue = venues.matches?.find((v) => v.capacity >= attendees);
     if (!venue) throw new Error('No larger venue found');
     await runTool('cancel_reservation', {});
-    await runTool('reserve_venue', { venueId: venue.id, attendees, date: status.event.date });
-    console.log('Replaned to', venue.name);
+    await runTool('reserve_venue', { venueId: venue.id, attendees, date: event.date });
+    console.log('Replanned to', venue.name);
   }
   return runTool('get_budget_status', {});
 }

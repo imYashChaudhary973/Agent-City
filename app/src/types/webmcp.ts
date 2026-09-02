@@ -12,11 +12,11 @@ export interface JSONSchema {
 
 export interface ToolAnnotations {
 	readOnlyHint?: boolean;
-	untrustedContentHint?: boolean;
 }
 
 export interface ExecuteOptions {
-	signal: AbortSignal;
+	/** Absent when a driver calls an executor directly instead of through the browser. */
+	signal?: AbortSignal;
 	bypassApproval?: boolean;
 }
 
@@ -27,14 +27,6 @@ export interface Tool {
 	inputSchema?: JSONSchema;
 	annotations?: ToolAnnotations;
 	execute: (input: unknown, options: ExecuteOptions) => Promise<unknown>;
-}
-
-export interface RegisteredToolInfo {
-	name: string;
-	title?: string;
-	description: string;
-	inputSchema?: JSONSchema;
-	annotations?: ToolAnnotations;
 }
 
 declare global {

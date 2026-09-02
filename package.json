@@ -9,6 +9,7 @@
 		"deploy": "npm run build:app && wrangler deploy",
 		"start": "wrangler dev",
 		"test": "vitest",
+		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json && tsc --noEmit -p test/tsconfig.json",
 		"cf-typegen": "wrangler types"
 	},
 	"devDependencies": {

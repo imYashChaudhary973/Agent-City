@@ -1,5 +1,5 @@
-import { venues, cateringPackages, calendarSlots } from './data';
-import type { Venue, CateringPackage, CalendarSlot, EventPlan } from './data';
+import { catalog, cateringPackages, demoDates } from './data';
+import type { EventPlan } from './data';
 
 interface BudgetStatus {
 	limit: number;
@@ -19,7 +19,7 @@ function getEventPlanFromRequest(request: Request): EventPlan {
 	}
 	return {
 		attendees: 12,
-		date: '2026-08-28',
+		date: demoDates()[1],
 		startTime: '14:00',
 		dietaryPreference: 'vegetarian',
 		budgetLimit: 10000,
@@ -59,6 +59,7 @@ export default {
 		const url = new URL(request.url);
 		const path = url.pathname;
 		const method = request.method;
+		const { venues, slots } = catalog();
 
 		if (method === 'OPTIONS') {
 			return new Response(null, {
@@ -124,23 +125,18 @@ export default {
 			return jsonResponse({ package: pkg, people, total: pkg.pricePerPerson * people });
 		}
 
-		if (path.startsWith('/api/catering/') && method === 'GET') {
-			const id = path.slice('/api/catering/'.length);
-			const pkg = cateringPackages.find((p) => p.id === id);
-			if (!pkg) return notFound();
-			return jsonResponse(pkg);
-		}
-
 		if (path === '/api/calendar/slots' && method === 'POST') {
 			const body = (await request.json()) as Record<string, unknown>;
 			const date = typeof body.date === 'string' ? body.date : undefined;
 			const after = typeof body.after === 'string' ? body.after : undefined;
 			const before = typeof body.before === 'string' ? body.before : undefined;
-			const matches = calendarSlots.filter((s) => {
+			const matches = slots.filter((s) => {
 				if (date && s.date !== date) return false;
 				if (!s.available) return false;
-				if (after && s.startTime <= after) return false;
-				if (before && s.endTime >= before) return false;
+				// Bounds are inclusive: "after 14:00" must keep the 14:00 slot, which is
+				// exactly what the demo prompt ("nothing before 2 PM") asks for.
+				if (after && s.startTime < after) return false;
+				if (before && s.endTime > before) return false;
 				return true;
 			});
 			return jsonResponse({ matches, count: matches.length });
@@ -240,7 +236,7 @@ export default {
 			const plan = getEventPlanFromRequest(request);
 			const slotId = typeof body.slotId === 'string' ? body.slotId : undefined;
 			if (!slotId) return badRequest('slotId required');
-			const slot = calendarSlots.find((s) => s.id === slotId);
+			const slot = slots.find((s) => s.id === slotId);
 			if (!slot || !slot.available) return badRequest('Slot not available');
 			plan.calendarSlot = slot;
 			plan.date = slot.date;
@@ -254,11 +250,15 @@ export default {
 			const plan = getEventPlanFromRequest(request);
 			const slotId = typeof body.slotId === 'string' ? body.slotId : undefined;
 			if (!slotId) return badRequest('slotId required');
-			const slot = calendarSlots.find((s) => s.id === slotId);
+			const slot = slots.find((s) => s.id === slotId);
 			if (!slot || !slot.available) return badRequest('Slot not available');
+			if (plan.venue && !plan.venue.availability.includes(slot.date)) {
+				return badRequest(`${plan.venue.name} is not available on ${slot.date}`);
+			}
 			plan.calendarSlot = slot;
 			plan.date = slot.date;
 			plan.startTime = slot.startTime;
+			plan.status = plan.venue && plan.catering ? 'scheduled' : 'reserved';
 			return jsonResponse({ event: plan, budget: budgetFor(plan) });
 		}
 
@@ -267,31 +267,6 @@ export default {
 			plan.calendarSlot = undefined;
 			plan.status = plan.venue || plan.catering ? 'reserved' : 'planning';
 			return jsonResponse({ event: plan, budget: budgetFor(plan) });
-		}
-
-		if (path === '/api/tools' && method === 'GET') {
-			return jsonResponse({
-				tools: [
-					{ name: 'search_venues', description: 'Search venues by capacity, price, date', mode: 'read' },
-					{ name: 'get_venue_details', description: 'Get venue details', mode: 'read' },
-					{ name: 'search_catering', description: 'Search catering by diet and people', mode: 'read' },
-					{ name: 'calculate_catering', description: 'Calculate catering cost', mode: 'read' },
-					{ name: 'find_available_slots', description: 'Find calendar slots', mode: 'read' },
-					{ name: 'get_event_plan', description: 'Get current event plan', mode: 'read' },
-					{ name: 'get_budget_status', description: 'Get budget status', mode: 'read' },
-					{ name: 'calculate_event_cost', description: 'Calculate event cost', mode: 'read' },
-					{ name: 'update_event_requirements', description: 'Update event requirements', mode: 'write' },
-					{ name: 'reserve_venue', description: 'Reserve a venue', mode: 'write' },
-					{ name: 'place_catering_order', description: 'Place catering order', mode: 'write' },
-					{ name: 'schedule_event', description: 'Schedule event slot', mode: 'write' },
-					{ name: 'modify_reservation', description: 'Change venue reservation', mode: 'write' },
-					{ name: 'cancel_reservation', description: 'Cancel venue reservation', mode: 'destructive' },
-					{ name: 'modify_catering_order', description: 'Change catering order', mode: 'write' },
-					{ name: 'cancel_catering_order', description: 'Cancel catering order', mode: 'destructive' },
-					{ name: 'reschedule_event', description: 'Reschedule event slot', mode: 'write' },
-					{ name: 'cancel_event', description: 'Cancel scheduled event', mode: 'destructive' },
-				],
-			});
 		}
 
 		// For SPA routing, serve index.html for non-API, non-asset paths (handled by assets binding usually)

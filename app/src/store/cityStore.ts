@@ -8,10 +8,11 @@ export interface CityState {
 	approvalOutcomes: Record<string, 'approved' | 'rejected' >;
 }
 
+/** UTC arithmetic, matching the Worker's `demoDates()` so both agree on "tomorrow". */
 function tomorrow(): string {
 	const d = new Date();
-	d.setDate(d.getDate() + 1);
-	return d.toISOString().split('T')[0];
+	d.setUTCDate(d.getUTCDate() + 1);
+	return d.toISOString().slice(0, 10);
 }
 
 function defaultEvent(): EventPlan {
@@ -62,11 +63,6 @@ export function getCityState(): CityState {
 	return state;
 }
 
-export function updateEvent(partial: Partial<EventPlan>) {
-	state = { ...state, event: { ...state.event, ...partial } };
-	emit();
-}
-
 export function setEvent(event: EventPlan) {
 	state = { ...state, event };
 	emit();
@@ -90,10 +86,13 @@ export function addPendingApproval(approval: PendingApproval) {
 	emit();
 }
 
+/** Clears the recorded outcome too: it exists only to unblock the waiting tool call. */
 export function removePendingApproval(id: string) {
+	const { [id]: _resolved, ...approvalOutcomes } = state.approvalOutcomes;
 	state = {
 		...state,
 		pendingApprovals: state.pendingApprovals.filter((a) => a.id !== id),
+		approvalOutcomes,
 	};
 	emit();
 }
@@ -107,12 +106,3 @@ export function getApprovalOutcome(id: string): 'approved' | 'rejected' | undefi
 	return state.approvalOutcomes[id];
 }
 
-export function resetCity() {
-	state = {
-		event: defaultEvent(),
-		actions: [],
-		pendingApprovals: [],
-		approvalOutcomes: {},
-	};
-	emit();
-}

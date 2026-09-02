@@ -5,8 +5,10 @@
 	--color-city-panel: #12121a;
 	--color-city-border: #2a2a3a;
 	--color-city-accent: #6366f1;
+	--color-city-accent-hover: #7c7ff7;
 	--color-city-glow: #818cf8;
-	--color-city-muted: #6b7280;
+	--color-city-muted: #8b8fa3;
+	--color-city-ink: #e2e4f0;
 	--color-city-venue: #06b6d4;
 	--color-city-catering: #22c55e;
 	--color-city-calendar: #f59e0b;
@@ -21,43 +23,118 @@
 }
 
 body {
-	font-family: 'Inter', system-ui, sans-serif;
+	font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+	color: var(--color-city-ink);
 }
 
 .font-mono {
 	font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.font-display {
+	font-family: 'Inter', system-ui, sans-serif;
+	font-weight: 800;
+	letter-spacing: -0.03em;
+}
+
 .city-grid {
 	background-image:
-		linear-gradient(rgba(99, 102, 241, 0.08) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(99, 102, 241, 0.08) 1px, transparent 1px);
+		linear-gradient(rgba(99, 102, 241, 0.06) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
 	background-size: 40px 40px;
 }
 
 .panel {
-	@apply bg-city-panel/80 border border-city-border rounded-lg backdrop-blur-sm;
+	@apply bg-city-panel/80 border border-city-border rounded-xl backdrop-blur-sm;
 }
 
-.node {
-	@apply flex items-center justify-center rounded-xl border font-semibold text-sm transition-all duration-300;
+/* In @layer components so per-button Tailwind utilities (px-8, bg-city-venue/20,
+   disabled:opacity-40) still win — unlayered rules would outrank every utility. */
+@layer components {
+	.btn-primary,
+	.btn-secondary,
+	.btn-ghost,
+	.btn-danger {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.5rem;
+		padding: 0.5rem 1rem;
+		font-size: 0.875rem;
+		line-height: 1.25rem;
+		font-weight: 500;
+		transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+	}
+	.btn-primary:focus,
+	.btn-secondary:focus,
+	.btn-ghost:focus,
+	.btn-danger:focus {
+		outline: none;
+	}
+	.btn-primary:focus-visible,
+	.btn-secondary:focus-visible,
+	.btn-ghost:focus-visible,
+	.btn-danger:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5);
+	}
+	.btn-primary:disabled,
+	.btn-secondary:disabled,
+	.btn-ghost:disabled,
+	.btn-danger:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-primary {
+		background-color: var(--color-city-accent);
+		color: #fff;
+	}
+	.btn-primary:hover:not(:disabled) {
+		background-color: var(--color-city-accent-hover);
+	}
+
+	.btn-secondary {
+		background-color: rgba(255, 255, 255, 0.05);
+		border: 1px solid var(--color-city-border);
+		color: var(--color-city-ink);
+	}
+	.btn-secondary:hover:not(:disabled) {
+		background-color: rgba(255, 255, 255, 0.1);
+	}
+
+	.btn-ghost {
+		color: var(--color-city-muted);
+	}
+	.btn-ghost:hover:not(:disabled) {
+		color: #fff;
+		background-color: rgba(255, 255, 255, 0.05);
+	}
+
+	.btn-danger {
+		border: 1px solid rgba(239, 68, 68, 0.4);
+		color: var(--color-city-danger);
+	}
+	.btn-danger:hover:not(:disabled) {
+		background-color: rgba(239, 68, 68, 0.1);
+	}
 }
 
-.node.active {
-	@apply shadow-[0_0_24px_rgba(99,102,241,0.35)] border-city-accent text-white;
-}
-
-.edge {
-	@apply h-px bg-city-border transition-colors duration-300;
-}
-
-.edge.active {
-	@apply bg-city-accent shadow-[0_0_8px_rgba(99,102,241,0.6)];
+.tag {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 9999px;
+	padding: 0.125rem 0.5rem;
+	font-size: 0.625rem;
+	line-height: 1;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
 }
 
 ::-webkit-scrollbar {
-	width: 8px;
-	height: 8px;
+	width: 6px;
+	height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -66,9 +143,17 @@ body {
 
 ::-webkit-scrollbar-thumb {
 	background: #2a2a3a;
-	border-radius: 4px;
+	border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
 	background: #3f3f55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }

@@ -87,82 +87,83 @@ export default function OverviewDistrict() {
 
 			<div className="grid grid-cols-2 gap-4">
 				<div className="panel p-4">
-					<div className="mb-1 font-mono text-xs text-city-venue">VENUE</div>
-					<div className="text-lg font-semibold">{event.venue ? event.venue.name : 'Not selected'}</div>
+					<div className="mb-1 font-mono text-[10px] tracking-wider text-city-venue">VENUE</div>
+					<div className="text-lg font-semibold text-city-ink">{event.venue ? event.venue.name : 'Not selected'}</div>
 					{event.venue && (
 						<div className="mt-1 text-xs text-city-muted">{event.venue.capacity} capacity · ₹{event.venue.price}</div>
 					)}
 				</div>
 
 				<div className="panel p-4">
-					<div className="mb-1 font-mono text-xs text-city-catering">CATERING</div>
-					<div className="text-lg font-semibold">{event.catering ? event.catering.name : 'Not selected'}</div>
+					<div className="mb-1 font-mono text-[10px] tracking-wider text-city-catering">CATERING</div>
+					<div className="text-lg font-semibold text-city-ink">{event.catering ? event.catering.name : 'Not selected'}</div>
 					{event.catering && (
 						<div className="mt-1 text-xs text-city-muted">{event.catering.diet} · ₹{event.catering.pricePerPerson}/person · {event.attendees} people</div>
 					)}
 				</div>
 
 				<div className="panel p-4">
-					<div className="mb-1 font-mono text-xs text-city-calendar">CALENDAR</div>
-					<div className="text-lg font-semibold">{event.calendarSlot ? `${event.calendarSlot.date} ${event.calendarSlot.startTime}` : 'Not scheduled'}</div>
+					<div className="mb-1 font-mono text-[10px] tracking-wider text-city-calendar">CALENDAR</div>
+					<div className="text-lg font-semibold text-city-ink">{event.calendarSlot ? `${event.calendarSlot.date} ${event.calendarSlot.startTime}` : 'Not scheduled'}</div>
 					{event.calendarSlot && (
 						<div className="mt-1 text-xs text-city-muted">{event.calendarSlot.endTime} end · slot {event.calendarSlot.id}</div>
 					)}
 				</div>
 
 				<div className="panel p-4">
-					<div className="mb-1 font-mono text-xs text-city-budget">BUDGET</div>
-					<div className="text-2xl font-bold">₹{total} / ₹{event.budgetLimit}</div>
+					<div className="mb-1 font-mono text-[10px] tracking-wider text-city-budget">BUDGET</div>
+					<div className="text-2xl font-bold text-city-ink">₹{total} / ₹{event.budgetLimit}</div>
 					<div className={`mt-1 text-xs ${remaining >= 0 ? 'text-city-success' : 'text-city-danger'}`}>
 						{remaining >= 0 ? `₹${remaining} remaining` : `₹${Math.abs(remaining)} over budget`}
 					</div>
 				</div>
 			</div>
 
-			<div className="panel p-4">
-				<div className="mb-3 font-mono text-xs text-city-muted">EVENT CONSTRAINTS</div>
-				<div className="grid grid-cols-4 gap-4">
+			<div className="panel p-5">
+				<div className="mb-4 font-mono text-[10px] tracking-wider text-city-muted">EVENT CONSTRAINTS</div>
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 					{constraints.map((c) => (
-						<div key={c.label} className="text-center">
+						<div key={c.label} className="rounded-xl bg-white/[0.03] p-3 text-center">
 							<div className="text-xs text-city-muted">{c.label}</div>
-							<div className="text-lg font-semibold">{c.value}</div>
-							<div className={`text-xs ${c.valid ? 'text-city-success' : 'text-city-danger'}`}>{c.valid ? '✓ VALID' : '✕ INVALID'}</div>
+							<div className="text-lg font-semibold text-city-ink">{c.value}</div>
+							<div className={`text-[10px] font-medium ${c.valid ? 'text-city-success' : 'text-city-danger'}`}>
+								{c.valid ? '✓ VALID' : '✕ INVALID'}
+							</div>
 						</div>
 					))}
 				</div>
 			</div>
 
 			{!capacityValid && event.venue && (
-				<div className="panel border-l-4 border-l-city-danger p-4">
-					<div className="mb-2 flex items-center justify-between">
-						<div className="font-mono text-xs text-city-danger">CONSTRAINT VIOLATION</div>
-						<button
-							onClick={autoReplan}
-							disabled={busy}
-							className="rounded-md bg-city-danger/20 px-3 py-1.5 text-xs font-medium text-city-danger transition hover:bg-city-danger/30 disabled:opacity-50"
-						>
+				<div className="panel overflow-hidden p-5">
+					<div className="mb-3 flex items-start justify-between gap-4">
+						<div className="flex items-center gap-2">
+							<span className="flex h-5 w-5 items-center justify-center rounded-full bg-city-danger/15 text-city-danger">!</span>
+							<div className="font-mono text-[10px] tracking-wider text-city-danger">CONSTRAINT VIOLATION</div>
+						</div>
+						<button onClick={autoReplan} disabled={busy} className="btn-danger">
 							{busy ? 'Replanning…' : 'Auto-replan'}
 						</button>
 					</div>
-					<div className="text-sm">
+					<p className="text-sm text-city-muted">
 						Venue {event.venue.name} capacity ({event.venue.capacity}) is less than required attendees ({event.attendees}).
 						Auto-replan will find a larger venue that still fits the budget.
-					</div>
+					</p>
 				</div>
 			)}
 
-			<div className="panel p-4">
-				<div className="mb-3 font-mono text-xs text-city-muted">QUICK ADJUSTMENTS</div>
-				<div className="flex items-center gap-4">
-					<div className="text-sm text-city-muted">Attendees:</div>
+			<div className="panel p-5">
+				<div className="mb-4 font-mono text-[10px] tracking-wider text-city-muted">QUICK ADJUSTMENTS</div>
+				<div className="flex flex-wrap items-center gap-3">
+					<span className="text-sm text-city-muted">Attendees:</span>
 					<div className="flex gap-2">
 						{[12, 16, 20, 24].map((n) => (
 							<button
 								key={n}
 								onClick={() => adjustAttendees(n)}
-								className={`rounded-md border px-4 py-2 text-sm ${
+								className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
 									selectedAttendees === n
-										? 'border-city-accent bg-city-accent/20 text-white'
+										? 'border-city-accent bg-city-accent/15 text-white'
 										: 'border-city-border text-city-muted hover:bg-white/5'
 								}`}
 							>

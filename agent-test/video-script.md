@@ -28,23 +28,23 @@ Required: **clear demo + audio narration**
 
 ---
 
-### 0:20 – 0:50 | The WebMCP Inspector
+### 0:20 – 0:50 | What the Agent Sees
 
-**Visual:** City Overview with the WebMCP Inspector panel on the right.
+**Visual:** The city stage in the centre, the agent pane docked on the right.
 
 **Audio:**
-> "On the right, you see the WebMCP inspector. It lists every tool the page currently exposes to the agent — read tools like search venues, write tools like reserve venue, and state-aware tools that only appear once a reservation exists."
+> "On the right is the agent pane — a live rendering of what `document.modelContext` exposes. It lists every tool the page currently offers: read tools like search venues, write tools like reserve venue that pause for my approval, and state-aware tools that only register once a reservation exists."
 
-**Action:** Briefly point at the inspector. Hover over a read tool and a write tool.
+**Action:** Expand one read tool and one write tool to show the input schema and the READ / WRITE badges.
 
 ---
 
 ### 0:50 – 1:50 | Human Walkthrough
 
-**Visual:** Click through districts.
+**Visual:** District panels opening over the city stage.
 
 **Audio:**
-> "A human can operate the city directly. I'll search venues, reserve Terminal 42, find a vegetarian catering package, book a calendar slot, and watch the budget update live."
+> "A human can operate the city directly. I'll search venues, reserve Terminal 42, order a vegetarian package, book a calendar slot, and watch the budget update live. The demo data rolls with the calendar — it always covers today and the next two days — so the dates are never stale."
 
 **Action:**
 1. Click **Venues** → **Search for venues**.
@@ -53,34 +53,34 @@ Required: **clear demo + audio narration**
 4. Click **Order** on Basic Veg Thali.
 5. Click **Calendar** → **Find slots**.
 6. Click **Schedule** on a slot.
-7. Click **Overview** and point at budget and constraints.
+7. Click **Plan** and point at the budget and constraints.
 
 ---
 
-### 1:50 – 2:35 | Agent Simulation / Replanning
+### 1:50 – 2:35 | Constraint Violation and Replan
 
-**Visual:** Overview with constraint violation.
+**Visual:** The Plan district with the constraint violation banner.
 
 **Audio:**
-> "Now imagine eight more developers are coming. I bump the attendees to 20. The venue is too small, so Agent City flags a constraint violation. With one click, Auto-replan finds a larger venue, updates the reservation, and recalculates the budget — all under ₹10,000."
+> "Now eight more developers are coming, so I bump attendees to 20. Terminal 42 only seats 12, so Agent City flags a constraint violation. Auto-replan searches again, takes the smallest venue that still fits, moves the reservation, and recalculates the budget — still under ₹10,000."
 
 **Action:**
-1. Click **20** in Quick Adjustments.
+1. Click **20** under **QUICK ADJUSTMENTS**.
 2. Wait for the **CONSTRAINT VIOLATION** banner.
 3. Click **Auto-replan**.
-4. Wait for the venue to change to CodeHouse.
-5. Point at the updated budget and valid constraints.
+4. Wait for the venue to change to Cache Corner (capacity 20).
+5. Point at the updated budget and the now-valid constraints.
 
 ---
 
 ### 2:35 – 2:55 | Why WebMCP Matters
 
-**Visual:** City Activity Graph + Inspector recent calls.
+**Visual:** The full city stage — AGENT and YOU origins, CITY HALL in the middle, the four district buildings — with the agent pane beside it.
 
 **Audio:**
-> "Every action is a WebMCP tool call. You can see them in the inspector and the city activity graph. That's the point: the web becomes a structured, observable, collaborative surface for both humans and agents."
+> "Every action is a WebMCP tool call, and the city draws it: a courier leaves City Hall, carries the call to the district, and returns with the result. Gated calls park at City Hall until I approve them. That's the point — the web becomes a structured, observable, collaborative surface for both humans and agents."
 
-**Action:** Scroll the Recent Calls list and point at a few calls.
+**Action:** Click **City** for the full stage, tick **FOLLOW AGENT** (off by default) so the centre view tracks whatever district is live, and point at a courier finishing a trip while its tool card in the pane reports the duration.
 
 ---
 
@@ -97,9 +97,9 @@ Required: **clear demo + audio narration**
 
 If you have access to ChatGPT's in-app browser, replace the human walkthrough with:
 
-> "Now I'll hand it to the agent. 'Organize a vegetarian meetup for 12 people tomorrow afternoon under ₹10,000.' Watch the inspector populate as the agent reasons through the tools."
+> "Now I'll hand it to the agent. 'Organize a vegetarian meetup for 12 people tomorrow afternoon under ₹10,000.' Watch the agent pane light up as the agent reasons through the tools."
 
-Then show the agent completing the flow, followed by the replan prompt.
+Then show the approval modal appearing on the first reservation, approve it, and follow with the replan prompt.
 
 ---
 

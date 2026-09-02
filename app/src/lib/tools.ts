@@ -11,9 +11,9 @@ import type {
 	UpdateRequirementsBody,
 } from './api';
 import { apiFetch } from './api';
-import { addPendingApproval, getApprovalOutcome, setApprovalOutcome, updateEvent, getCityState } from '../store/cityStore';
+import { needsApproval } from './cityEvents';
+import { addPendingApproval, getApprovalOutcome, setEvent, getCityState, subscribeCity, addAction, updateAction } from '../store/cityStore';
 import type { ExecuteOptions } from '../types/webmcp';
-import { addAction, updateAction } from '../store/cityStore';
 
 function readString(obj: unknown, key: string): string | undefined {
 	if (obj && typeof obj === 'object' && key in obj) {
@@ -31,15 +31,12 @@ function readNumber(obj: unknown, key: string): number | undefined {
 	return undefined;
 }
 
-function needsApproval(toolName: string): boolean {
-	const writeTools = ['reserve_venue', 'place_catering_order', 'schedule_event'];
-	const destructiveTools = ['cancel_reservation', 'cancel_catering_order', 'cancel_event'];
-	return writeTools.includes(toolName) || destructiveTools.includes(toolName);
-}
-
-function extractOptions(options: ExecuteOptions | AbortSignal): { signal: AbortSignal; bypassApproval: boolean } {
-	if (options instanceof AbortSignal || !options || typeof options !== 'object') {
-		return { signal: options as AbortSignal, bypassApproval: false };
+function extractOptions(options: ExecuteOptions | AbortSignal | undefined): {
+	signal: AbortSignal | undefined;
+	bypassApproval: boolean;
+} {
+	if (!options || options instanceof AbortSignal) {
+		return { signal: options, bypassApproval: false };
 	}
 	return { signal: options.signal, bypassApproval: options.bypassApproval ?? false };
 }
@@ -52,6 +49,12 @@ function describeAction(toolName: string, input: unknown): string {
 			return `Order catering package ${readString(input, 'packageId') ?? ''} for ${readNumber(input, 'people') ?? ''} people`;
 		case 'schedule_event':
 			return `Schedule event in slot ${readString(input, 'slotId') ?? ''}`;
+		case 'modify_reservation':
+			return `Move the reservation to venue ${readString(input, 'venueId') ?? ''}`;
+		case 'modify_catering_order':
+			return `Change catering to package ${readString(input, 'packageId') ?? ''}`;
+		case 'reschedule_event':
+			return `Move the event to slot ${readString(input, 'slotId') ?? ''}`;
 		case 'cancel_reservation':
 			return 'Cancel current venue reservation';
 		case 'cancel_catering_order':
@@ -63,30 +66,53 @@ function describeAction(toolName: string, input: unknown): string {
 	}
 }
 
-async function requestApproval(toolName: string, input: unknown, rawOptions: ExecuteOptions | AbortSignal): Promise<void> {
+/**
+ * Gates a mutation on the user. `needsApproval` is the single source of truth,
+ * so an executor can call this unconditionally. Resolves immediately for
+ * ungated tools and for the human UI, which already has consent from the click.
+ */
+async function requestApproval(toolName: string, input: unknown, rawOptions?: ExecuteOptions | AbortSignal): Promise<void> {
 	const { signal, bypassApproval } = extractOptions(rawOptions);
-	if (bypassApproval) return;
+	if (bypassApproval || !needsApproval(toolName)) return;
+
 	const approvalId = crypto.randomUUID();
 	addPendingApproval({ id: approvalId, tool: toolName, input, description: describeAction(toolName, input) });
+
 	const { promise, resolve, reject } = Promise.withResolvers<void>();
-	const check = setInterval(() => {
-		if (signal.aborted) {
-			clearInterval(check);
+	// Driven by store notifications rather than a poll, so an approval the user
+	// never answers costs nothing until the page goes away.
+	let stop = () => {};
+	const settle = () => {
+		if (signal?.aborted) {
+			stop();
 			reject(signal.reason ?? new Error('Tool execution aborted'));
 			return;
 		}
 		const outcome = getApprovalOutcome(approvalId);
 		if (!outcome) return;
-		clearInterval(check);
+		stop();
 		if (outcome === 'approved') resolve();
 		else reject(new Error('User rejected the action'));
-	}, 300);
+	};
+
+	const unsubscribe = subscribeCity(settle);
+	signal?.addEventListener('abort', settle);
+	stop = () => {
+		unsubscribe();
+		signal?.removeEventListener('abort', settle);
+	};
+	settle();
 	return promise;
 }
 
+/**
+ * The Worker always answers with the whole plan, and JSON drops the keys it
+ * cleared — so this replaces the event instead of merging. Merging is what used
+ * to make every cancellation a no-op on the client.
+ */
 function mutateFromResult(result: unknown) {
 	if (result && typeof result === 'object' && 'event' in result) {
-		updateEvent(result.event as Partial<EventPlan>);
+		setEvent(result.event as EventPlan);
 	}
 }
 
@@ -136,7 +162,6 @@ function slotsSchema(): JSONSchema {
 			date: { type: 'string', description: 'Date (YYYY-MM-DD). Defaults to event date.' },
 			after: { type: 'string', description: 'Earliest start time (HH:MM)' },
 			before: { type: 'string', description: 'Latest end time (HH:MM)' },
-			durationMinutes: { type: 'integer', description: 'Minimum slot duration' },
 		},
 	};
 }
@@ -209,11 +234,11 @@ export function availableTools(state: CityState): Tool[] {
 		),
 
 		tool('find_available_slots', 'Find Slots', 'Find available calendar slots for a given date and time range.', slotsSchema(), readOnly(), async (input) => {
-			const params: SlotsSearchParams = { date: readString(input, 'date'), after: readString(input, 'after'), before: readString(input, 'before'), durationMinutes: readNumber(input, 'durationMinutes') };
+			const params: SlotsSearchParams = { date: readString(input, 'date'), after: readString(input, 'after'), before: readString(input, 'before') };
 			return apiFetch('/calendar/slots', { method: 'POST', body: JSON.stringify(params) });
 		}),
 
-		tool('get_event_plan', 'Event Plan', 'Return the current event plan including attendees, budget, chosen venue, catering, and calendar slot.', { type: 'object', properties: {} }, readOnly(), async () => ({ event: state.event })),
+		tool('get_event_plan', 'Event Plan', 'Return the current event plan including attendees, budget, chosen venue, catering, and calendar slot.', { type: 'object', properties: {} }, readOnly(), async () => ({ event: getCityState().event })),
 
 		tool('get_budget_status', 'Budget Status', 'Get the current budget status: limit, reserved, spent, remaining.', { type: 'object', properties: {} }, readOnly(), async () =>
 			apiFetch('/budget/status')
@@ -240,23 +265,24 @@ export function availableTools(state: CityState): Tool[] {
 
 	tools.push(
 		tool('reserve_venue', 'Reserve Venue', 'Reserve a venue for the event. Requires human approval.', reserveVenueSchema(), undefined, async (input, options) => {
-			if (needsApproval('reserve_venue')) await requestApproval('reserve_venue', input, options);
-			const body: ReserveVenueBody = { venueId: readString(input, 'venueId') ?? '', attendees: readNumber(input, 'attendees') ?? state.event.attendees, date: readString(input, 'date') ?? state.event.date };
+			await requestApproval('reserve_venue', input, options);
+			const plan = getCityState().event;
+			const body: ReserveVenueBody = { venueId: readString(input, 'venueId') ?? '', attendees: readNumber(input, 'attendees') ?? plan.attendees, date: readString(input, 'date') ?? plan.date };
 			const res = await apiFetch('/venues/reserve', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
 			return res;
 		}),
 
 		tool('place_catering_order', 'Order Catering', 'Place a catering order for the event. Requires human approval.', orderCateringSchema(), undefined, async (input, options) => {
-			if (needsApproval('place_catering_order')) await requestApproval('place_catering_order', input, options);
-			const body: PlaceCateringBody = { packageId: readString(input, 'packageId') ?? '', people: readNumber(input, 'people') ?? state.event.attendees };
+			await requestApproval('place_catering_order', input, options);
+			const body: PlaceCateringBody = { packageId: readString(input, 'packageId') ?? '', people: readNumber(input, 'people') ?? getCityState().event.attendees };
 			const res = await apiFetch('/catering/order', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
 			return res;
 		}),
 
 		tool('schedule_event', 'Schedule Event', 'Schedule the event in a calendar slot. Requires human approval.', scheduleSchema(), undefined, async (input, options) => {
-			if (needsApproval('schedule_event')) await requestApproval('schedule_event', input, options);
+			await requestApproval('schedule_event', input, options);
 			const body: ScheduleEventBody = { slotId: readString(input, 'slotId') ?? '' };
 			const res = await apiFetch('/calendar/schedule', { method: 'POST', body: JSON.stringify(body) });
 			mutateFromResult(res);
@@ -266,15 +292,17 @@ export function availableTools(state: CityState): Tool[] {
 
 	if (state.event.venue) {
 		tools.push(
-			tool('modify_reservation', 'Modify Reservation', 'Change the reserved venue to another venue. Useful when constraints change.', modifyReservationSchema(), undefined, async (input) => {
-				const body: ReserveVenueBody = { venueId: readString(input, 'venueId') ?? '', attendees: readNumber(input, 'attendees') ?? state.event.attendees, date: readString(input, 'date') ?? state.event.date };
+			tool('modify_reservation', 'Modify Reservation', 'Change the reserved venue to another venue. Useful when constraints change. Requires human approval.', modifyReservationSchema(), undefined, async (input, options) => {
+				await requestApproval('modify_reservation', input, options);
+				const plan = getCityState().event;
+				const body: ReserveVenueBody = { venueId: readString(input, 'venueId') ?? '', attendees: readNumber(input, 'attendees') ?? plan.attendees, date: readString(input, 'date') ?? plan.date };
 				const res = await apiFetch('/venues/reserve', { method: 'POST', body: JSON.stringify(body) });
 				mutateFromResult(res);
 				return res;
 			}),
 
-						tool('cancel_reservation', 'Cancel Reservation', 'Cancel the current venue reservation. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
-				if (needsApproval('cancel_reservation')) await requestApproval('cancel_reservation', {}, options);
+			tool('cancel_reservation', 'Cancel Reservation', 'Cancel the current venue reservation. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
+				await requestApproval('cancel_reservation', {}, options);
 				const res = await apiFetch('/venues/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
@@ -284,15 +312,16 @@ export function availableTools(state: CityState): Tool[] {
 
 	if (state.event.catering) {
 		tools.push(
-			tool('modify_catering_order', 'Modify Catering', 'Change the catering order to another package or people count.', modifyCateringSchema(), undefined, async (input) => {
-				const body: PlaceCateringBody = { packageId: readString(input, 'packageId') ?? '', people: readNumber(input, 'people') ?? state.event.attendees };
+			tool('modify_catering_order', 'Modify Catering', 'Change the catering order to another package or people count. Requires human approval.', modifyCateringSchema(), undefined, async (input, options) => {
+				await requestApproval('modify_catering_order', input, options);
+				const body: PlaceCateringBody = { packageId: readString(input, 'packageId') ?? '', people: readNumber(input, 'people') ?? getCityState().event.attendees };
 				const res = await apiFetch('/catering/order', { method: 'POST', body: JSON.stringify(body) });
 				mutateFromResult(res);
 				return res;
 			}),
 
 			tool('cancel_catering_order', 'Cancel Catering', 'Cancel the current catering order. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
-				if (needsApproval('cancel_catering_order')) await requestApproval('cancel_catering_order', {}, options);
+				await requestApproval('cancel_catering_order', {}, options);
 				const res = await apiFetch('/catering/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
@@ -302,7 +331,8 @@ export function availableTools(state: CityState): Tool[] {
 
 	if (state.event.calendarSlot) {
 		tools.push(
-			tool('reschedule_event', 'Reschedule Event', 'Move the event to a different calendar slot.', scheduleSchema(), undefined, async (input) => {
+			tool('reschedule_event', 'Reschedule Event', 'Move the event to a different calendar slot. Requires human approval.', scheduleSchema(), undefined, async (input, options) => {
+				await requestApproval('reschedule_event', input, options);
 				const body: ScheduleEventBody = { slotId: readString(input, 'slotId') ?? '' };
 				const res = await apiFetch('/calendar/reschedule', { method: 'POST', body: JSON.stringify(body) });
 				mutateFromResult(res);
@@ -310,7 +340,7 @@ export function availableTools(state: CityState): Tool[] {
 			}),
 
 			tool('cancel_event', 'Cancel Event', 'Cancel the scheduled event. Requires human approval.', { type: 'object', properties: {} }, undefined, async (_input, options) => {
-				if (needsApproval('cancel_event')) await requestApproval('cancel_event', {}, options);
+				await requestApproval('cancel_event', {}, options);
 				const res = await apiFetch('/calendar/cancel', { method: 'POST' });
 				mutateFromResult(res);
 				return res;
@@ -328,7 +358,7 @@ export async function runTool(toolName: string, input: unknown, bypassApproval =
 	if (!tool) throw new Error(`Tool ${toolName} not available`);
 	const id = crypto.randomUUID();
 	const start = performance.now();
-	addAction({ id, tool: toolName, input, result: null, duration: 0, ts: Date.now(), status: 'pending' });
+	addAction({ id, tool: toolName, origin: 'human', input, result: null, duration: 0, ts: Date.now(), status: 'pending' });
 	try {
 		const result = await tool.execute(input, { signal: new AbortController().signal, bypassApproval });
 		const duration = Math.round(performance.now() - start);

@@ -48,6 +48,8 @@ export interface EventPlan {
 export interface AgentAction {
 	id: string;
 	tool: string;
+	/** Which operator dispatched this call: the WebMCP agent, or a human clicking the UI. */
+	origin: 'agent' | 'human';
 	input: unknown;
 	result: unknown;
 	duration: number;
@@ -62,4 +64,4 @@ export interface PendingApproval {
 	description: string;
 }
 
-export type District = 'overview' | 'venues' | 'catering' | 'calendar' | 'budget';
+export type District = 'city' | 'overview' | 'venues' | 'catering' | 'calendar' | 'budget';

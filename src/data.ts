@@ -38,7 +38,21 @@ export interface EventPlan {
 	status: 'planning' | 'reserved' | 'scheduled' | 'cancelled';
 }
 
-export const venues: Venue[] = [
+/**
+ * Demo datasets roll with the calendar: day 0 is today (UTC), so prompts like
+ * "tomorrow afternoon" always resolve to real availability.
+ */
+export function demoDates(): [string, string, string] {
+	const now = new Date();
+	return [0, 1, 2].map((offset) => {
+		const d = new Date(now);
+		d.setUTCDate(d.getUTCDate() + offset);
+		return d.toISOString().slice(0, 10);
+	}) as [string, string, string];
+}
+
+/** `openOn` indexes into `demoDates()`, so availability shifts with the day. */
+const VENUE_SEED: (Omit<Venue, 'availability'> & { openOn: number[] })[] = [
 	{
 		id: 'codehouse',
 		name: 'CodeHouse',
@@ -46,7 +60,7 @@ export const venues: Venue[] = [
 		price: 4000,
 		location: 'Indiranagar',
 		features: ['projector', 'whiteboard', 'wifi', 'parking'],
-		availability: ['2026-08-28', '2026-08-29', '2026-08-30'],
+		openOn: [0, 1, 2],
 	},
 	{
 		id: 'devhub',
@@ -55,7 +69,7 @@ export const venues: Venue[] = [
 		price: 2500,
 		location: 'Koramangala',
 		features: ['wifi', 'coffee'],
-		availability: ['2026-08-28', '2026-08-29', '2026-08-30'],
+		openOn: [0, 1, 2],
 	},
 	{
 		id: 'stackarena',
@@ -64,7 +78,7 @@ export const venues: Venue[] = [
 		price: 7000,
 		location: 'HSR Layout',
 		features: ['projector', 'stage', 'sound', 'parking'],
-		availability: ['2026-08-28', '2026-08-30'],
+		openOn: [0, 2],
 	},
 	{
 		id: 'terminal',
@@ -73,7 +87,7 @@ export const venues: Venue[] = [
 		price: 1800,
 		location: 'Whitefield',
 		features: ['wifi', 'whiteboard'],
-		availability: ['2026-08-28', '2026-08-29', '2026-08-30'],
+		openOn: [0, 1, 2],
 	},
 	{
 		id: 'cachecorner',
@@ -82,7 +96,7 @@ export const venues: Venue[] = [
 		price: 3200,
 		location: 'MG Road',
 		features: ['projector', 'wifi', 'coffee'],
-		availability: ['2026-08-29', '2026-08-30'],
+		openOn: [1, 2],
 	},
 	{
 		id: 'pixelpalace',
@@ -91,7 +105,7 @@ export const venues: Venue[] = [
 		price: 5500,
 		location: 'JP Nagar',
 		features: ['projector', 'whiteboard', 'wifi', 'parking', 'coffee'],
-		availability: ['2026-08-28', '2026-08-29', '2026-08-30'],
+		openOn: [0, 1, 2],
 	},
 ];
 
@@ -161,22 +175,35 @@ export const cateringPackages: CateringPackage[] = [
 	},
 ];
 
-export function generateSlots(): CalendarSlot[] {
-	const dates = ['2026-08-28', '2026-08-29', '2026-08-30'];
-	const starts = ['10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
-	const slots: CalendarSlot[] = [];
-	for (const date of dates) {
-		for (let i = 0; i < starts.length; i++) {
-			slots.push({
-				id: `${date}-${i}`,
-				date,
-				startTime: starts[i],
-				endTime: `${parseInt(starts[i].split(':')[0]) + 1}:00`,
-				available: true,
-			});
-		}
-	}
-	return slots;
+const SLOT_STARTS = ['10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
+
+interface Catalog {
+	day: string;
+	venues: Venue[];
+	slots: CalendarSlot[];
 }
 
-export const calendarSlots: CalendarSlot[] = generateSlots();
+let cached: Catalog | undefined;
+
+/** Rebuilt only when the UTC day rolls over, so warm isolates never go stale. */
+export function catalog(): Catalog {
+	const dates = demoDates();
+	if (cached?.day === dates[0]) return cached;
+	cached = {
+		day: dates[0],
+		venues: VENUE_SEED.map(({ openOn, ...venue }) => ({
+			...venue,
+			availability: openOn.map((index) => dates[index]),
+		})),
+		slots: dates.flatMap((date) =>
+			SLOT_STARTS.map((startTime, index) => ({
+				id: `${date}-${index}`,
+				date,
+				startTime,
+				endTime: `${String(Number(startTime.slice(0, 2)) + 1).padStart(2, '0')}:00`,
+				available: true,
+			}))
+		),
+	};
+	return cached;
+}
